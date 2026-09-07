@@ -1,4 +1,5 @@
 import { text, eventInput, enroll, publicGroup } from './domain.js';
+import { migrate, isAdmin, canRead, passwordHash, setPassword } from './access.js';
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
 export default {
   async fetch(request, env) {
@@ -20,27 +21,68 @@ export class Group {
         if (!token || !/^[a-f0-9-]{36}$/.test(token)) return json({ error: 'Identificación no válida.' }, 401);
         const path = new URL(request.url).pathname.split('/').slice(4);
         let group = await this.ctx.storage.get('group');
-        if (request.method === 'GET' && path.length === 0) return group ? json(publicGroup(group, token)) : json({ error: 'No se encuentra el grupo. Comprueba el enlace.' }, 404);
+        if (group) migrate(group);
+        const locked = () => json({ error: 'Introduce la contraseña del grupo para acceder.', locked: true }, 401);
+        if (request.method === 'GET' && path.length === 0) {
+          if (!group || !canRead(group, token)) return locked();
+          await this.ctx.storage.put('group', group);
+          return json(publicGroup(group, token));
+        }
         const raw = await request.text();
         if (raw.length > 16384) return json({ error: 'Petición demasiado grande.' }, 413);
         const body = raw ? JSON.parse(raw) : {};
         if (request.method === 'POST' && path.length === 0) {
-          if (group) return json({ error: 'El grupo ya existe.' }, 409);
-          group = { name: text(body.name, 80), owner: token, events: [] };
+          if (group) return locked();
+          group = migrate({ name: text(body.name, 80), owner: token, events: [] });
+          await setPassword(group, body.password);
         } else {
-          if (!group) return json({ error: 'Grupo no encontrado.' }, 404);
-          if (path[0] !== 'events') return json({ error: 'Ruta no encontrada.' }, 404);
-          if (path.length === 1 && request.method === 'POST') {
-            if (group.owner !== token) return json({ error: 'Solo el organizador puede crear quedadas.' }, 403);
+          if (!group) return locked();
+          if (path.length === 1 && path[0] === 'unlock' && request.method === 'POST') {
+            const name = text(body.name, 60);
+            const now = Date.now();
+            let attempts = await this.ctx.storage.get('attempts');
+            if (!attempts || now - attempts.start > 60000) attempts = { start: now, count: 0 };
+            if (attempts.count >= 30) return json({ error: 'Demasiados intentos. Espera un minuto.' }, 429);
+            attempts.count++;
+            await this.ctx.storage.put('attempts', attempts);
+            if (group.password && (typeof body.password !== 'string' || body.password.length > 128 || await passwordHash(body.password, group.password.salt) !== group.password.hash)) return locked();
+            let member = group.members.find(m => m.token === token);
+            if (!member) {
+              if (group.members.length >= 2000) throw new Error('El grupo ha alcanzado su límite de miembros.');
+              member = { id: crypto.randomUUID(), token }; group.members.push(member);
+            }
+            member.name = name; member.version = group.accessVersion;
+          } else if (!canRead(group, token)) return locked();
+          else if (path.length === 1 && path[0] === 'settings' && request.method === 'PATCH') {
+            if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden modificar los ajustes.' }, 403);
+            group.name = text(body.name, 80);
+            if (body.password) await setPassword(group, body.password);
+          } else if (path.length === 1 && path[0] === 'admins' && request.method === 'PATCH') {
+            if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden gestionar permisos.' }, 403);
+            const member = group.members.find(m => m.id === body.memberId);
+            if (!member || typeof body.admin !== 'boolean') throw new Error('Selecciona un miembro del grupo.');
+            if (body.admin && !isAdmin(group, member.token)) group.admins.push(member.token);
+            if (!body.admin) {
+              if (group.admins.length === 1 && isAdmin(group, member.token)) throw new Error('Debe quedar al menos un administrador.');
+              group.admins = group.admins.filter(t => t !== member.token);
+              member.version = -1;
+            }
+          } else if (path[0] !== 'events') return json({ error: 'Ruta no encontrada.' }, 404);
+          else if (path.length === 1 && request.method === 'POST') {
+            if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden crear quedadas.' }, 403);
             if (group.events.length >= 200) throw new Error('Límite de 200 quedadas por grupo.');
             group.events.push(eventInput(body));
           } else {
             const event = group.events.find(e => e.id === path[1]);
             if (!event) return json({ error: 'Quedada no encontrada.' }, 404);
-            if (path.length === 3 && path[2] === 'participants' && request.method === 'POST') enroll(event, token, body.name);
+            if (path.length === 3 && path[2] === 'participants' && request.method === 'POST') {
+              enroll(event, token, body.name);
+              migrate(group);
+              group.members.find(m => m.token === token).name = text(body.name, 60);
+            }
             else if (path.length === 3 && path[2] === 'participants' && request.method === 'DELETE') event.participants = event.participants.filter(p => p.token !== token);
             else if (path.length === 2 && request.method === 'DELETE') {
-              if (group.owner !== token) return json({ error: 'Solo el organizador puede cancelar.' }, 403);
+              if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden cancelar.' }, 403);
               group.events = group.events.filter(e => e.id !== event.id);
             } else return json({ error: 'Ruta no encontrada.' }, 404);
           }

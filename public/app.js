@@ -6,9 +6,12 @@ let token, saved, group, id, filter = 'all', joining;
 try { token = localStorage.getItem('quedario.identity') || crypto.randomUUID(); localStorage.setItem('quedario.identity', token); saved = JSON.parse(localStorage.getItem('quedario.groups') || '{}'); } catch { $('#notice').textContent = 'Activa el almacenamiento de este navegador para usar Quedario.'; throw new Error('Storage unavailable'); }
 function notice(message){$('#notice').textContent = message;}
 function remember(){saved[id] = group.name;localStorage.setItem('quedario.groups',JSON.stringify(saved));}
-async function api(path='', method='GET', body){const r = await fetch(`/api/groups/${id}${path}`, {method, headers:{'Content-Type':'application/json','X-Participant':token}, ...(body ? {body:JSON.stringify(body)}:{})}); const data = await r.json();if(!r.ok)throw new Error(data.error || 'No se pudo completar.');return data;}
+async function api(path='', method='GET', body){const r = await fetch(`/api/groups/${id}${path}`, {method, headers:{'Content-Type':'application/json','X-Participant':token}, ...(body ? {body:JSON.stringify(body)}:{})}); const data = await r.json();if(!r.ok){if(data.locked){group=null;$('#group').hidden=true;$('#members-section').hidden=true;$('#locked').hidden=false;delete saved[id];localStorage.setItem('quedario.groups',JSON.stringify(saved));}throw new Error(data.error || 'No se pudo completar.');}return data;}
 async function action(fn){const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);try{notice('');await fn();}catch(e){notice(e.message || 'Comprueba tu conexión e inténtalo de nuevo.');}finally{buttons.forEach(b=>b.disabled=false);}}
 function render(){
+  $('#locked').hidden=true;$('#group').hidden=false;$('#members-section').hidden=false;$('#settings').hidden=!group.owner;
+  $('#privacy-note').textContent=group.protected?'Grupo protegido por contraseña. Comparte el enlace solo con los tuyos.':'Este grupo aún no tiene contraseña. Un administrador puede establecerla en Ajustes del grupo.';
+  $('#members').innerHTML=(group.members||[]).map(m=>`<article class="card"><strong>${esc(m.name)}${m.mine?' (tú)':''}</strong><p class="muted">${m.admin?'Administrador':'Miembro'}</p>${group.owner?`<button class="secondary" data-member="${esc(m.id)}" data-admin="${!m.admin}">${m.admin?'Quitar administración':'Nombrar administrador'}</button>`:''}</article>`).join('');
   $('#group-name').textContent=group.name;$('#new-event').hidden=!group.owner;
   const events=group.events.filter(e=>($('#past').checked || new Date(e.date)>new Date()) && (filter==='all'||e.category===filter)).sort((a,b)=>new Date(a.date)-new Date(b.date));
   $('#count').textContent=`· ${events.length}`;
@@ -16,7 +19,7 @@ function render(){
 }
 async function load(){group=await api();remember();render();}
 function groupUrl(){return `${location.origin}/#g=${id}`;}
-async function route(){const match=location.hash.match(/^#g=([a-f0-9-]{36})$/);id=match?.[1];$('#home').hidden=!!id;$('#group').hidden=!id;if(id){$('#events').textContent='Cargando grupo…';await action(load);}else{$('#saved').innerHTML=Object.entries(saved).map(([key,name])=>`<a class="card saved-link" href="#g=${esc(key)}"><h3>${esc(name)}</h3><span class="muted">Entrar al grupo →</span></a>`).join('')||'<p class="muted">Aquí encontrarás los grupos que crees o visites desde este navegador.</p>';}}
+async function route(){const match=location.hash.match(/^#g=([a-f0-9-]{36})$/);id=match?.[1];$('#home').hidden=!!id;$('#group').hidden=true;$('#locked').hidden=true;$('#members-section').hidden=true;if(id){$('#events').textContent='Cargando grupo…';await action(load);}else{$('#saved').innerHTML=Object.entries(saved).map(([key,name])=>`<a class="card saved-link" href="#g=${esc(key)}"><h3>${esc(name)}</h3><span class="muted">Entrar al grupo →</span></a>`).join('')||'<p class="muted">Aquí encontrarás los grupos que crees o visites desde este navegador.</p>';}}
 $('#group-form').onsubmit=e=>{e.preventDefault();action(async()=>{id=crypto.randomUUID();group=await api('','POST',Object.fromEntries(new FormData(e.target)));remember();location.hash=`g=${id}`;e.target.reset();});};
 $('#event-form').onsubmit=e=>{e.preventDefault();action(async()=>{const data=Object.fromEntries(new FormData(e.target));data.date=new Date(data.date).toISOString();group=await api('/events','POST',data);$('#event-dialog').close();e.target.reset();updateDetail();render();});};
 function updateDetail(){
@@ -36,4 +39,9 @@ $('#filters').onclick=e=>{const button=e.target.closest('[data-category]');if(!b
 $('#past').onchange=render;$('#refresh').onclick=()=>action(load);
 $('#copy').onclick=()=>action(async()=>{await navigator.clipboard.writeText(groupUrl());notice('Enlace del grupo copiado.');});
 $('#share').onclick=()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Únete a ${group.name} en Quedario y apúntate a nuestros planes: ${groupUrl()}`)}`,'_blank','noopener,noreferrer');
+$('#settings').onclick=()=>{const form=$('#settings-form');form.elements.name.value=group.name;form.elements.password.value='';$('#settings-dialog').showModal();};
+$('#settings-close').onclick=()=>$('#settings-dialog').close();
+$('#settings-form').onsubmit=e=>{e.preventDefault();action(async()=>{group=await api('/settings','PATCH',Object.fromEntries(new FormData(e.target)));remember();render();$('#settings-dialog').close();notice('Ajustes guardados.');});};
+$('#unlock-form').onsubmit=e=>{e.preventDefault();action(async()=>{group=await api('/unlock','POST',Object.fromEntries(new FormData(e.target)));e.target.reset();remember();render();});};
+$('#members').onclick=e=>{const b=e.target.closest('[data-member]');if(!b)return;if(!confirm(b.dataset.admin==='true'?'¿Nombrar administrador? Podrá cambiar el nombre, la contraseña y los permisos del grupo.':'¿Retirar los permisos de administración?'))return;action(async()=>{group=await api('/admins','PATCH',{memberId:b.dataset.member,admin:b.dataset.admin==='true'});remember();render();});};
 window.addEventListener('hashchange',route);route();

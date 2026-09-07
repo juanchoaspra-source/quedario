@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 const origin='http://127.0.0.1:8787', id=crypto.randomUUID(), owner=crypto.randomUUID(), guest=crypto.randomUUID();
 async function request(path,method='GET',body,token=owner){const response=await fetch(`${origin}/api/groups/${id}${path}`,{method,headers:{Origin:origin,'X-Participant':token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:response.status,data:await response.json()};}
-assert.equal((await request('','POST',{name:'Prueba'})).status,200);
+assert.equal((await request('','POST',{name:'Prueba',password:'Prueba segura 123'})).status,200);
+assert.equal((await request('/unlock','POST',{name:'Bea',password:'Prueba segura 123'},guest)).status,200);
 let result=await request('/events','POST',{title:'Cena',place:'Centro',category:'cena',capacity:1,date:'2099-01-01'});
 const event=result.data.events[0].id;
 assert.equal((await request('/events','POST',{title:'No autorizado'},guest)).status,403);

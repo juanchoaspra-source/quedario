@@ -1,3 +1,4 @@
+import { isAdmin } from './access.js';
 export function text(value, max = 100) {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max) throw new Error('Revisa los campos obligatorios y su longitud.');
   return value.trim();
@@ -17,5 +18,7 @@ export function enroll(event, token, name) {
   event.participants.push({ token, name: text(name, 60) });
 }
 export function publicGroup(group, token) {
-  return { name: group.name, owner: token === group.owner, events: group.events.map(e => ({ ...e, participants: e.participants.map((p, i) => ({ name: p.name, mine: p.token === token, waiting: i >= e.capacity })) })) };
+  return { name: group.name, owner: isAdmin(group, token), protected: !!group.password,
+    members: (group.members || []).map(m => ({ id: m.id, name: m.name, admin: isAdmin(group, m.token), mine: m.token === token })),
+    events: group.events.map(e => ({ ...e, participants: e.participants.map((p, i) => ({ name: p.name, mine: p.token === token, waiting: i >= e.capacity })) })) };
 }
