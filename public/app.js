@@ -20,7 +20,7 @@ function render(){
 async function load(){group=await api();remember();render();}
 function groupUrl(){return `${location.origin}/#g=${id}`;}
 async function route(){const match=location.hash.match(/^#g=([a-f0-9-]{36})$/);id=match?.[1];$('#home').hidden=!!id;$('#group').hidden=true;$('#locked').hidden=true;$('#members-section').hidden=true;if(id){$('#events').textContent='Cargando grupo…';await action(load);}else{$('#saved').innerHTML=Object.entries(saved).map(([key,name])=>`<a class="card saved-link" href="#g=${esc(key)}"><h3>${esc(name)}</h3><span class="muted">Entrar al grupo →</span></a>`).join('')||'<p class="muted">Aquí encontrarás los grupos que crees o visites desde este navegador.</p>';}}
-$('#group-form').onsubmit=e=>{e.preventDefault();action(async()=>{id=crypto.randomUUID();group=await api('','POST',Object.fromEntries(new FormData(e.target)));remember();location.hash=`g=${id}`;e.target.reset();});};
+$('#group-form').onsubmit=e=>{e.preventDefault();if(!validatePasswords(e.target))return;action(async()=>{id=crypto.randomUUID();group=await api('','POST',Object.fromEntries(new FormData(e.target)));remember();location.hash=`g=${id}`;e.target.reset();});};
 $('#event-form').onsubmit=e=>{e.preventDefault();action(async()=>{const data=Object.fromEntries(new FormData(e.target));data.date=new Date(data.date).toISOString();group=await api('/events','POST',data);$('#event-dialog').close();e.target.reset();updateDetail();render();});};
 function updateDetail(){
   const category = $('#event-form select').value;
@@ -43,9 +43,29 @@ $('#category-picker').onchange=e=>selectCategory(e.target.value);
 $('#past').onchange=render;$('#refresh').onclick=()=>action(load);
 $('#copy').onclick=()=>action(async()=>{await navigator.clipboard.writeText(groupUrl());notice('Enlace del grupo copiado.');});
 $('#share').onclick=()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Únete a ${group.name} en Quedario y apúntate a nuestros planes: ${groupUrl()}`)}`,'_blank','noopener,noreferrer');
-$('#settings').onclick=()=>{const form=$('#settings-form');form.elements.name.value=group.name;form.elements.password.value='';$('#settings-dialog').showModal();};
+$('#settings').onclick=()=>{const form=$('#settings-form');form.elements.name.value=group.name;form.elements.password.value='';form.elements.passwordConfirm.value='';form.elements.passwordConfirm.setCustomValidity('');form.elements.passwordConfirm.required=false;$('#settings-dialog').showModal();};
 $('#settings-close').onclick=()=>$('#settings-dialog').close();
-$('#settings-form').onsubmit=e=>{e.preventDefault();action(async()=>{group=await api('/settings','PATCH',Object.fromEntries(new FormData(e.target)));remember();render();$('#settings-dialog').close();notice('Ajustes guardados.');});};
+$('#settings-form').onsubmit=e=>{e.preventDefault();if(!validatePasswords(e.target))return;action(async()=>{group=await api('/settings','PATCH',Object.fromEntries(new FormData(e.target)));remember();render();$('#settings-dialog').close();notice('Ajustes guardados.');});};
 $('#unlock-form').onsubmit=e=>{e.preventDefault();action(async()=>{group=await api('/unlock','POST',Object.fromEntries(new FormData(e.target)));e.target.reset();remember();render();});};
 $('#members').onclick=e=>{const b=e.target.closest('[data-member]');if(!b)return;if(!confirm(b.dataset.admin==='true'?'¿Nombrar administrador? Podrá cambiar el nombre, la contraseña y los permisos del grupo.':'¿Retirar los permisos de administración?'))return;action(async()=>{group=await api('/admins','PATCH',{memberId:b.dataset.member,admin:b.dataset.admin==='true'});remember();render();});};
+function validatePasswords(form){
+ const password=form.elements.password, confirmation=form.elements.passwordConfirm;
+ confirmation.setCustomValidity(password.value===confirmation.value?'':'Las contraseñas no coinciden.');
+ return form.reportValidity();
+}
+for(const form of [$('#group-form'),$('#settings-form')]){
+ for(const input of [form.elements.password,form.elements.passwordConfirm]) input.addEventListener('input',()=>{
+   form.elements.passwordConfirm.setCustomValidity('');
+   form.elements.passwordConfirm.required=!!form.elements.password.value || form.id==='group-form';
+ });
+}
+const eye='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+document.querySelectorAll('input[type="password"]').forEach((input,index)=>{
+ input.id ||= 'password-field-'+index;
+ const wrap=document.createElement('span');wrap.className='password-field';input.before(wrap);wrap.append(input);
+ const button=document.createElement('button');button.type='button';button.className='password-eye';button.innerHTML=eye;button.setAttribute('aria-controls',input.id);
+ const update=()=>{const visible=input.type==='text';button.setAttribute('aria-label',visible?'Ocultar contraseña':'Mostrar contraseña');button.title=visible?'Ocultar contraseña':'Mostrar contraseña';button.setAttribute('aria-pressed',String(visible));};
+ button.onclick=()=>{input.type=input.type==='password'?'text':'password';update();};wrap.append(button);update();
+ input.form.addEventListener('reset',()=>{input.type='password';update();});
+});
 window.addEventListener('hashchange',route);route();

@@ -6,3 +6,5 @@
 @media(max-width:900px){.filters{display:none}.category-picker{display:grid;max-width:100%;margin:18px 0}.category-picker select{min-height:48px;font-size:16px}}
 
 .group-title{display:flex;align-items:center;gap:16px}.group-title h1{overflow-wrap:anywhere}.gear-button{width:46px;height:46px;min-width:46px;padding:10px;border-radius:50%;flex-shrink:0}.gear-button svg{width:25px;height:25px}
+
+.password-field{position:relative;display:block}.password-field input{padding-right:54px}.password-eye{position:absolute;right:3px;top:3px;width:44px;height:42px;min-height:42px;padding:10px;background:transparent;color:#31594b}.password-eye:hover{background:#eef1e7}.password-eye svg{width:23px;height:23px}.password-eye[aria-pressed=true]{background:#e4eadd}
