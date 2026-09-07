@@ -2,7 +2,7 @@
 
 Aplicación móvil-first en español: un enlace por grupo, calendario de quedadas, categorías con iconos (cena, comida, café, concierto, ruta y otros), aforo, participantes, lista de espera y compartir el grupo por WhatsApp.
 
-Las quedadas se agrupan por día y se ordenan por hora. Los administradores disponen de un botón fijo **Crear actividad** en móvil. Al crear una quedada pueden escribir una dirección y comprobarla en Google Maps, o autorizar la ubicación del dispositivo para guardar un punto exacto; al consultar la actividad, el enlace abre ese lugar en Google Maps.
+Las quedadas se agrupan por día y se ordenan por hora. Los administradores disponen de un botón fijo **Crear actividad** en móvil. Al crear una quedada pueden escribir una dirección y comprobarla en Google Maps, o autorizar la ubicación del dispositivo para guardar un punto exacto; al consultar la actividad, el enlace abre ese lugar en Google Maps. También pueden dejar un comentario inicial, y quienes se apuntan pueden añadir el suyo.
 
 ## Desplegar desde la pantalla de Cloudflare
 
@@ -47,6 +47,7 @@ npm run deploy
  - WhatsApp abre un mensaje preparado para que el usuario elija el destinatario y lo envíe; no usa la API de WhatsApp ni envía automáticamente.
 - La fecha se introduce y muestra en la zona horaria del dispositivo, y se conserva en UTC. Los planes se presentan agrupados por fecha y ordenados por hora; los pasados se ocultan por defecto. Las categorías tienen filtros reales.
 - Google Maps se abre mediante sus enlaces universales, por lo que no requiere clave de API ni carga un mapa de Google dentro de Quedario. La ubicación exacta es opcional y solo se solicita desde el botón correspondiente al crear una quedada.
+- Los comentarios se guardan junto con la actividad y son visibles para todas las personas con acceso al grupo. El administrador puede añadir un comentario inicial al crear el plan y cada persona puede añadir otro cuando se apunta.
  - Pulsa **Actualizar participantes** para ver los cambios de otros dispositivos. No hay notificaciones ni sincronización en tiempo real.
 - Máximos iniciales: 200 quedadas por grupo, 500 plazas y 1000 inscripciones por quedada. No hay controles antispam ni recuperación de identidad: antes de abrir el servicio al público conviene incorporar cuentas, recuperación, límites por origen y herramientas de administración.
 - No se incluyen datos ficticios ni analítica. El coste depende de las cuotas y el uso de la cuenta de Cloudflare.

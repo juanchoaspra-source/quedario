@@ -6,6 +6,8 @@ La contraseña ahora es opcional. Al crear un grupo, dejarla vacía lo hace acce
 
 Al crear una quedada, un administrador puede guardar opcionalmente su ubicación exacta. Quedario solicita el permiso de ubicación del navegador solo al pulsar **Usar mi ubicación exacta**; almacena las coordenadas junto con la quedada y las muestra mediante un enlace a Google Maps. Cualquier persona que pueda ver la quedada puede abrir ese punto, por lo que no conviene compartir ubicaciones privadas con grupos abiertos.
 
+Los comentarios opcionales escritos al crear una quedada o al apuntarse se guardan con esa actividad y pueden ser leídos por todas las personas que tengan acceso al grupo. No deben contener contraseñas, datos personales delicados ni instrucciones de acceso a domicilios privados.
+
 Los grupos nuevos reciben una dirección basada en su nombre, por ejemplo `/los-del-viernes`. Si está ocupada se ofrecen alternativas seleccionables. Cambiar el nombre no cambia la dirección. Los enlaces anteriores con identificador siguen funcionando.
 
 **Borrar grupo por completo** requiere ser administrador y escribir el nombre exacto del grupo. Elimina sus miembros, credenciales, quedadas, inscripciones y ajustes del almacenamiento activo; conserva únicamente una marca sin contenido que impide recrear el identificador antiguo. Libera la dirección con nombre para que pueda reutilizarse. Por ello, una invitación antigua con esa dirección podría apuntar a un grupo nuevo si alguien vuelve a usarla. Cerrar y reabrir siguen siendo acciones separadas que conservan los datos.

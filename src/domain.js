@@ -17,7 +17,7 @@ export function eventInput(body) {
   const category = ['cena', 'comida', 'cafe', 'concierto', 'ruta', 'motos', 'fiestas', 'teatro', 'cine', 'viaje', 'otro'].includes(body.category) ? body.category : 'otro';
   const detail = ['fiestas', 'viaje'].includes(category) ? text(body.detail, 80) : '';
   const location = locationInput(body.location);
-  return { id: crypto.randomUUID(), title, place, category, detail, capacity, date: date.toISOString(), participants: [], ...(location ? {location} : {}) };
+  return { id: crypto.randomUUID(), title, place, category, detail, capacity, date: date.toISOString(), participants: [], comments: [], ...(location ? {location} : {}) };
 }
 export function enroll(event, token, name) {
   if (new Date(event.date) <= new Date()) throw new Error('Esta quedada ya ha comenzado.');
@@ -25,8 +25,15 @@ export function enroll(event, token, name) {
   if (event.participants.length >= 1000) throw new Error('La lista está completa.');
   event.participants.push({ token, name: text(name, 60) });
 }
+export function addComment(event, token, name, value) {
+  if (value === undefined || value === null || value === '') return;
+  const comment = text(value, 500);
+  event.comments ??= [];
+  if (event.comments.length >= 500) throw new Error('Esta actividad ya tiene el máximo de 500 comentarios.');
+  event.comments.push({ id: crypto.randomUUID(), token, name: text(name, 60), text: comment, createdAt: new Date().toISOString() });
+}
 export function publicGroup(group, token) {
   return { name: group.name, slug: group.slug, owner: isAdmin(group, token), protected: !!group.password, closed: !!group.closed,
     members: (group.members || []).map(member => ({ id: member.id, name: member.name, admin: isAdmin(group, member.token), mine: member.token === token })),
-    events: group.events.map(event => ({ ...event, participants: event.participants.map((participant, index) => ({ name: participant.name, mine: participant.token === token, waiting: index >= event.capacity })) })) };
+    events: group.events.map(event => ({ ...event, participants: event.participants.map((participant, index) => ({ name: participant.name, mine: participant.token === token, waiting: index >= event.capacity })), comments: (event.comments || []).map(comment => ({ id: comment.id, name: comment.name, text: comment.text, createdAt: comment.createdAt, mine: comment.token === token })) })) };
 }

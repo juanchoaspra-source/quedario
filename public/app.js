@@ -16,8 +16,10 @@ try {
 
 function notice(message) {
   $('#notice').textContent = message;
-  const inline = $('#unlock-status');
-  if (inline) inline.textContent = message;
+  for (const id of ['unlock-status', 'event-status', 'join-status']) {
+    const inline = $('#' + id);
+    if (inline) inline.textContent = message;
+  }
 }
 window.addEventListener('error', () => notice('No se pudo completar la acción. Recarga la página e inténtalo de nuevo.'));
 window.addEventListener('unhandledrejection', () => notice('No se pudo completar la acción. Comprueba tu conexión y vuelve a intentarlo.'));
@@ -70,7 +72,9 @@ function eventCard(event) {
   const full = event.participants.length >= event.capacity;
   const past = new Date(event.date) <= new Date();
   const map = mapsUrl(event.place, event.location);
-  return `<article class="card event-card"><div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div><div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${group.owner ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
+  const comments = event.comments || [];
+  const commentsMarkup = comments.length ? `<section class="event-comments" aria-label="Comentarios"><h4>Comentarios <span>${comments.length}</span></h4><ul>${comments.map(comment => `<li><strong>${esc(comment.name)}${comment.mine ? ' (tú)' : ''}</strong><p>${esc(comment.text)}</p></li>`).join('')}</ul></section>` : '<section class="event-comments"><h4>Comentarios <span>0</span></h4><p class="muted">Aún no hay comentarios.</p></section>';
+  return `<article class="card event-card"><div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${group.owner ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
 }
 
 function renderEvents(events) {
@@ -142,7 +146,7 @@ function clearDraftLocation() {
   $('#location-status').textContent = 'Puedes comprobar el lugar en Google Maps o guardar tu ubicación actual como punto exacto.';
 }
 function openEventDialog() {
-  const form = $('#event-form'); form.reset(); clearDraftLocation(); updateDetail(); updatePlacePreview(); $('#event-dialog').showModal(); form.elements.title.focus();
+  const form = $('#event-form'); form.reset(); notice(''); clearDraftLocation(); updateDetail(); updatePlacePreview(); $('#event-dialog').showModal(); form.elements.title.focus();
 }
 function currentPosition() {
   return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:12000, maximumAge:60000}));
@@ -177,17 +181,18 @@ $('#event-form').onsubmit = event => { event.preventDefault(); action(async () =
   data.date = new Date(data.date).toISOString();
   group = await api('/events', 'POST', data);
   $('#event-dialog').close(); form.reset(); clearDraftLocation(); updateDetail(); render();
+  notice('Actividad creada y añadida a la agenda.');
 }); };
 
 $('#events').onclick = event => {
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const eventId = button.dataset.event;
-  if (button.dataset.action === 'join') { joining = eventId; $('#join-dialog').showModal(); return; }
+  if (button.dataset.action === 'join') { joining = eventId; notice(''); $('#join-dialog').showModal(); return; }
   if (!confirm(button.dataset.action === 'cancel' ? '¿Cancelar esta quedada para todo el grupo?' : '¿Salir de la quedada? La primera persona en espera ocupará tu plaza.')) return;
   action(async () => { group = await api(`/events/${eventId}${button.dataset.action === 'leave' ? '/participants' : ''}`, 'DELETE'); render(); });
 };
-$('#join-form').onsubmit = event => { event.preventDefault(); action(async () => { group = await api(`/events/${joining}/participants`, 'POST', Object.fromEntries(new FormData(event.target))); $('#join-dialog').close(); render(); }); };
+$('#join-form').onsubmit = event => { event.preventDefault(); action(async () => { group = await api(`/events/${joining}/participants`, 'POST', Object.fromEntries(new FormData(event.target))); $('#join-dialog').close(); render(); notice('Te has apuntado a la actividad.'); }); };
 
 $('#filters').innerHTML = '<button class="secondary" data-category="all" aria-pressed="true">Todos</button>' + Object.entries(categories).map(([key, [name]]) => `<button class="secondary" data-category="${key}" aria-pressed="false">${icon(key)}${name}</button>`).join('');
 $('#category-picker').innerHTML = '<option value="all">Todas las actividades</option>' + Object.entries(categories).map(([key, [name]]) => `<option value="${key}">${categoryEmoji[key]} ${name}</option>`).join('');
