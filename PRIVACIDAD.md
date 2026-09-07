@@ -1,5 +1,13 @@
 # Ajustes, contraseñas y miembros
 
+## Actualización: grupos abiertos, enlaces y borrado
+
+La contraseña ahora es opcional. Al crear un grupo, dejarla vacía lo hace accesible a quien tenga el enlace. En Ajustes, guardar ambos campos de contraseña vacíos elimina la contraseña existente, con confirmación explícita. Esta regla sustituye las indicaciones anteriores de conservar la contraseña al dejar el campo vacío.
+
+Los grupos nuevos reciben una dirección basada en su nombre, por ejemplo `/los-del-viernes`. Si está ocupada se ofrecen alternativas seleccionables. Cambiar el nombre no cambia la dirección. Los enlaces anteriores con identificador siguen funcionando.
+
+**Borrar grupo por completo** requiere ser administrador y escribir el nombre exacto del grupo. Elimina sus miembros, credenciales, quedadas, inscripciones y ajustes del almacenamiento activo; conserva únicamente una marca sin contenido que impide recrear el identificador antiguo. Libera la dirección con nombre para que pueda reutilizarse. Por ello, una invitación antigua con esa dirección podría apuntar a un grupo nuevo si alguien vuelve a usarla. Cerrar y reabrir siguen siendo acciones separadas que conservan los datos.
+
 Desde el navegador y el dominio donde creaste el grupo, abre el grupo y pulsa **Ajustes del grupo**. Puedes cambiar el nombre o establecer una contraseña de 8 a 128 caracteres. Dejar la contraseña vacía conserva la actual. Las quedadas y sus inscripciones se conservan.
 
 Los grupos anteriores no reciben una contraseña inventada: su creador debe establecerla. Los nuevos grupos requieren contraseña desde su creación. Una vez protegido, la API no revela el nombre, los planes ni los miembros sin acceso. La contraseña se guarda derivada con PBKDF2, sal aleatoria y 100000 iteraciones, nunca en texto plano. Hay un límite de 30 intentos por grupo y minuto.

@@ -1,5 +1,7 @@
 import { text, eventInput, enroll, publicGroup } from './domain.js';
 import { migrate, isAdmin, canRead, passwordHash, setPassword } from './access.js';
+import { slugify, namesRequest } from './names.js';
+export { Names } from './names.js';
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
 export default {
   async fetch(request, env) {
@@ -7,19 +9,25 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (request.method !== 'GET' && request.headers.get('Origin') !== url.origin) return json({ error: 'Origen no permitido.' }, 403);
     if (Number(request.headers.get('Content-Length')) > 16384) return json({ error: 'Petición demasiado grande.' }, 413);
+    const named=url.pathname.match(/^\/api\/resolve\/([a-z0-9-]{1,65})$/);
+    if(named && request.method==='GET') {
+      const response=await namesRequest(env,'/resolve',{slug:named[1]});
+      return json(await response.json(),response.status);
+    }
     const match = url.pathname.match(/^\/api\/groups\/([a-f0-9-]{36})(?:\/.*)?$/);
     if (!match) return json({ error: 'Ruta no encontrada.' }, 404);
     return env.GROUPS.get(env.GROUPS.idFromName(match[1])).fetch(request);
   }
 };
 export class Group {
-  constructor(ctx) { this.ctx = ctx; }
+  constructor(ctx, env) { this.ctx = ctx; this.env = env; }
   async fetch(request) {
     return this.ctx.blockConcurrencyWhile(async () => {
       try {
         const token = request.headers.get('X-Participant');
         if (!token || !/^[a-f0-9-]{36}$/.test(token)) return json({ error: 'Identificación no válida.' }, 401);
         const path = new URL(request.url).pathname.split('/').slice(4);
+        if(await this.ctx.storage.get('deleted')) return json({error:'Este grupo ha sido borrado.',deleted:true},410);
         let group = await this.ctx.storage.get('group');
         if (group) migrate(group);
         const locked = () => json({ error: 'Introduce la contraseña del grupo para acceder.', locked: true }, 401);
@@ -34,11 +42,23 @@ export class Group {
         if (request.method === 'POST' && path.length === 0) {
           if (group) return locked();
           group = migrate({ name: text(body.name, 80), owner: token, events: [] });
-          await setPassword(group, body.password);
+          if(body.password) await setPassword(group, body.password);
+          if(this.env?.NAMES){
+            const response=await namesRequest(this.env,'/claim',{slug:slugify(body.slug || group.name),id:new URL(request.url).pathname.split('/')[3]});
+            const result=await response.json();if(!response.ok)return json(result,response.status);
+            group.slug=result.slug;
+          }
         } else {
           if (!group) return locked();
           if (group.banned.includes(token)) return locked();
-          if (path.length === 1 && path[0] === 'unlock' && request.method === 'POST') {
+          if(path.length===0 && request.method==='DELETE'){
+            if(!isAdmin(group,token))return json({error:'Solo los administradores pueden borrar el grupo.'},403);
+            if(body.confirmName!==group.name)throw new Error('Escribe el nombre exacto del grupo para confirmar el borrado.');
+            await this.ctx.storage.deleteAll();
+            await this.ctx.storage.put('deleted',true);
+            if(group.slug && this.env?.NAMES)await namesRequest(this.env,'/release',{slug:group.slug,id:new URL(request.url).pathname.split('/')[3]});
+            return json({deleted:true});
+          } else if (path.length === 1 && path[0] === 'unlock' && request.method === 'POST') {
             if (group.closed && !group.members.some(m => m.token === token)) return locked();
             const name = text(body.name, 60);
             const now = Date.now();
@@ -59,6 +79,7 @@ export class Group {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden modificar los ajustes.' }, 403);
             group.name = text(body.name, 80);
             if (body.password) await setPassword(group, body.password);
+            else if(body.password===''){delete group.password;group.accessVersion++;}
           } else if (path.length === 1 && path[0] === 'status' && request.method === 'PATCH') {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden cerrar o reabrir el grupo.' }, 403);
             if (typeof body.closed !== 'boolean') throw new Error('Estado no válido.');

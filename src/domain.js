@@ -18,7 +18,7 @@ export function enroll(event, token, name) {
   event.participants.push({ token, name: text(name, 60) });
 }
 export function publicGroup(group, token) {
-  return { name: group.name, owner: isAdmin(group, token), protected: !!group.password, closed: !!group.closed,
+  return { name: group.name, slug: group.slug, owner: isAdmin(group, token), protected: !!group.password, closed: !!group.closed,
     members: (group.members || []).map(m => ({ id: m.id, name: m.name, admin: isAdmin(group, m.token), mine: m.token === token })),
     events: group.events.map(e => ({ ...e, participants: e.participants.map((p, i) => ({ name: p.name, mine: p.token === token, waiting: i >= e.capacity })) })) };
 }

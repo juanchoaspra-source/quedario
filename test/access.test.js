@@ -4,7 +4,7 @@ import { Group } from '../src/worker.js';
 test('migra el grupo existente, protege datos, administra permisos y revoca contraseñas', async () => {
  const owner=crypto.randomUUID(), guest=crypto.randomUUID(), stranger=crypto.randomUUID();
  const map=new Map([['group',{name:'Grupo existente',owner,events:[]}]]);
- const instance=new Group({storage:{get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v))},blockConcurrencyWhile:fn=>fn()});
+ const instance=new Group({storage:{get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),deleteAll:async()=>map.clear()},blockConcurrencyWhile:fn=>fn()});
  async function req(token,path='',method='GET',body){const r=await instance.fetch(new Request('https://example.com/api/groups/'+crypto.randomUUID()+path,{method,headers:{'X-Participant':token},...(body?{body:JSON.stringify(body)}:{})}));return {status:r.status,data:await r.json()};}
  assert.equal((await req(owner)).data.owner,true);
  assert.equal((await req(guest,'/settings','PATCH',{name:'Ataque'})).status,403);
@@ -42,4 +42,12 @@ test('migra el grupo existente, protege datos, administra permisos y revoca cont
  assert.equal(expelled.data.events[0].participants[0].waiting,false);
  assert.equal((await req(guest)).status,401);
  assert.equal((await req(guest,'/unlock','POST',{name:'Bea',password:'Nueva clave 456'})).status,401);
+ assert.equal((await req(owner,'/settings','PATCH',{name:'Sin contraseña',password:''})).data.protected,false);
+ assert.equal((await req(stranger)).status,200);
+ assert.equal((await req(stranger,'','DELETE',{confirmName:'Sin contraseña'})).status,403);
+ assert.equal((await req(owner,'','DELETE',{confirmName:'Nombre incorrecto'})).status,400);
+ assert.equal((await req(owner,'','DELETE',{confirmName:'Sin contraseña'})).data.deleted,true);
+ assert.equal(map.has('group'),false);
+ assert.equal((await req(owner)).status,410);
+ assert.equal((await req(owner,'','POST',{name:'Recrear'})).status,410);
 });
