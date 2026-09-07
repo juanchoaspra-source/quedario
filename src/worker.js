@@ -1,4 +1,4 @@
-import { text, eventInput, enroll, publicGroup } from './domain.js';
+import { text, eventInput, enroll, addComment, publicGroup } from './domain.js';
 import { migrate, isAdmin, canRead, passwordHash, setPassword } from './access.js';
 import { slugify, namesRequest } from './names.js';
 export { Names } from './names.js';
@@ -110,7 +110,10 @@ export class Group {
             if (group.closed) throw new Error('El grupo está cerrado. Reábrelo para crear quedadas.');
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden crear quedadas.' }, 403);
             if (group.events.length >= 200) throw new Error('Límite de 200 quedadas por grupo.');
-            group.events.push(eventInput(body));
+            const event = eventInput(body);
+            const member = group.members.find(m => m.token === token);
+            addComment(event, token, member?.name || 'Administrador', body.comment);
+            group.events.push(event);
           } else {
             const event = group.events.find(e => e.id === path[1]);
             if (!event) return json({ error: 'Quedada no encontrada.' }, 404);
@@ -118,7 +121,9 @@ export class Group {
               if (group.closed) throw new Error('El grupo está cerrado y no admite inscripciones.');
               enroll(event, token, body.name);
               migrate(group);
-              group.members.find(m => m.token === token).name = text(body.name, 60);
+              const member = group.members.find(m => m.token === token);
+              member.name = text(body.name, 60);
+              addComment(event, token, member.name, body.comment);
             }
             else if (path.length === 3 && path[2] === 'participants' && request.method === 'DELETE') event.participants = event.participants.filter(p => p.token !== token);
             else if (path.length === 2 && request.method === 'DELETE') {
