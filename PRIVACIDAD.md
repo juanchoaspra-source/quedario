@@ -18,7 +18,7 @@ Los grupos anteriores no reciben una contraseña inventada: su creador debe esta
 
 Cada miembro entra con su nombre y contraseña. La sección **Miembros del grupo** es visible para todos los miembros autorizados. Incluye a quienes han entrado en Quedario; no importa automáticamente integrantes de WhatsApp. En grupos antiguos se incorporan el creador y las personas inscritas en quedadas.
 
-Los administradores pueden cambiar ajustes, crear y cancelar planes y nombrar o retirar administradores desde la lista de miembros. Nunca se puede retirar al último administrador. Los identificadores de miembro que muestra la API no son credenciales.
+Todas las personas con acceso al grupo pueden crear planes. Los administradores pueden cambiar ajustes, cancelar planes y nombrar o retirar administradores desde la lista de miembros. Nunca se puede retirar al último administrador. Los identificadores de miembro que muestra la API no son credenciales.
 
 Cambiar la contraseña invalida los accesos de los miembros normales en su siguiente petición; los administradores conservan acceso. No borra información que alguien ya haya visto. Retirar un administrador de un grupo protegido obliga a introducir la contraseña nuevamente.
 

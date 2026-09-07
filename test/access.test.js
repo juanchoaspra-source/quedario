@@ -15,6 +15,8 @@ test('migra el grupo existente, protege datos, administra permisos y revoca cont
  assert.equal(unlocked.status,200);assert.equal(unlocked.data.members.length,2);assert.equal(JSON.stringify(unlocked.data).includes(owner),false);
  const member=unlocked.data.members.find(m=>m.mine);
  assert.equal((await req(guest,'/admins','PATCH',{memberId:member.id,admin:true})).status,403);
+ const guestPlan=await req(guest,'/events','POST',{title:'Plan de Bea',place:'Centro',capacity:1,date:'2099-01-01'});
+ assert.equal(guestPlan.status,200);assert.equal(guestPlan.data.events[0].title,'Plan de Bea');
  assert.equal((await req(owner,'/admins','PATCH',{memberId:member.id,admin:true})).status,200);
  assert.equal((await req(guest,'/settings','PATCH',{name:'Nuevo nombre',password:'Nueva clave 456'})).status,200);
  assert.equal((await req(owner,'/admins','PATCH',{memberId:member.id,admin:false})).status,200);
@@ -23,9 +25,9 @@ test('migra el grupo existente, protege datos, administra permisos y revoca cont
  assert.equal((await req(guest,'/unlock','POST',{name:'Bea',password:'Nueva clave 456'})).status,200);
  const mine=(await req(owner)).data.members.find(m=>m.mine);
  assert.equal((await req(owner,'/admins','PATCH',{memberId:mine.id,admin:false})).status,400);
- assert.equal(map.get('group').events.length,0);
+ assert.equal(map.get('group').events.length,1);
  assert.equal(map.get('group').password.hash.includes('Nueva clave'),false);
- const event=(await req(owner,'/events','POST',{title:'Cena',place:'Centro',capacity:1,date:'2099-01-01'})).data.events[0];
+ const event=(await req(owner,'/events','POST',{title:'Cena',place:'Centro',capacity:1,date:'2099-01-01'})).data.events.at(-1);
  await req(guest,`/events/${event.id}/participants`,'POST',{name:'Bea'});
  await req(owner,`/events/${event.id}/participants`,'POST',{name:'Ana'});
  assert.equal((await req(guest,'/status','PATCH',{closed:true})).status,403);
@@ -38,8 +40,9 @@ test('migra el grupo existente, protege datos, administra permisos y revoca cont
  assert.equal((await req(owner,`/members/${mine.id}`,'DELETE')).status,400);
  const expelled=await req(owner,`/members/${member.id}`,'DELETE');
  assert.equal(expelled.status,200);
- assert.equal(expelled.data.events[0].participants.length,1);
- assert.equal(expelled.data.events[0].participants[0].waiting,false);
+ const remainingEvent=expelled.data.events.find(item=>item.title==='Cena');
+ assert.equal(remainingEvent.participants.length,1);
+ assert.equal(remainingEvent.participants[0].waiting,false);
  assert.equal((await req(guest)).status,401);
  assert.equal((await req(guest,'/unlock','POST',{name:'Bea',password:'Nueva clave 456'})).status,401);
  assert.equal((await req(owner,'/settings','PATCH',{name:'Sin contraseña',password:''})).data.protected,false);

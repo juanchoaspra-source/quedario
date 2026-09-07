@@ -94,9 +94,10 @@ function render() {
   $('#privacy-note').textContent = group.protected ? 'Grupo protegido por contraseña. Comparte el enlace solo con los tuyos.' : 'Este grupo aún no tiene contraseña. Un administrador puede establecerla en Ajustes del grupo.';
   $('#group-name').textContent = group.name;
   $('#members').innerHTML = (group.members || []).map(member => `<article class="card"><strong>${esc(member.name)}${member.mine ? ' (tú)' : ''}</strong><p class="muted">${member.admin ? 'Administrador' : 'Miembro'}</p>${group.owner ? `<button class="secondary" data-member="${esc(member.id)}" data-admin="${!member.admin}">${member.admin ? 'Quitar administración' : 'Nombrar administrador'}</button><button class="secondary" data-expel="${esc(member.id)}">Expulsar miembro</button>` : ''}</article>`).join('');
-  const canCreate = group.owner && !group.closed;
+  const canCreate = !group.closed;
   $('#new-event').hidden = !canCreate;
   $('#new-event-mobile').hidden = !canCreate;
+  $('#creation-note').textContent = group.closed ? 'Grupo cerrado: nadie puede crear ni apuntarse a actividades hasta que un administrador lo reabra.' : 'Cualquier persona con acceso al grupo puede crear actividades. Solo los administradores pueden cancelarlas.';
   $('#group-status').textContent = group.closed ? 'Reabrir grupo' : 'Cerrar grupo';
   if (group.closed) $('#privacy-note').textContent = 'Grupo cerrado: se conserva para consulta y no admite nuevas entradas ni inscripciones.';
   const events = group.events.filter(event => ($('#past').checked || new Date(event.date) > new Date()) && (filter === 'all' || event.category === filter)).sort((a, b) => new Date(a.date) - new Date(b.date));

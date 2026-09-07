@@ -108,7 +108,6 @@ export class Group {
           } else if (path[0] !== 'events') return json({ error: 'Ruta no encontrada.' }, 404);
           else if (path.length === 1 && request.method === 'POST') {
             if (group.closed) throw new Error('El grupo está cerrado. Reábrelo para crear quedadas.');
-            if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden crear quedadas.' }, 403);
             if (group.events.length >= 200) throw new Error('Límite de 200 quedadas por grupo.');
             const event = eventInput(body);
             const member = group.members.find(m => m.token === token);
