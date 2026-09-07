@@ -2,7 +2,7 @@
 
 Aplicación móvil-first en español: un enlace por grupo, calendario de quedadas, categorías con iconos (cena, comida, café, concierto, ruta y otros), aforo, participantes, lista de espera y compartir el grupo por WhatsApp.
 
-Las quedadas se agrupan por día y se ordenan por hora. Cualquier persona con acceso al grupo dispone de un botón fijo **Crear actividad** en móvil. Al crear una quedada pueden escribir una dirección y comprobarla en Google Maps, o autorizar la ubicación del dispositivo para guardar un punto exacto; al consultar la actividad, el enlace abre ese lugar en Google Maps. También pueden dejar un comentario inicial, y quienes se apuntan pueden añadir el suyo.
+Las quedadas se agrupan por día y se ordenan por hora. Cualquier persona con acceso al grupo dispone de un botón fijo **Crear actividad** en móvil. En rutas, fiestas y viajes se eligen fecha/hora de inicio y de fin; inicialmente ambas son iguales para un plan de un día. Al crear una quedada pueden escribir una dirección y comprobarla en Google Maps, o autorizar la ubicación del dispositivo para guardar un punto exacto; al consultar la actividad, el enlace abre ese lugar en Google Maps. También pueden dejar un comentario inicial, y quienes se apuntan pueden añadir el suyo.
 
 ## Desplegar desde la pantalla de Cloudflare
 

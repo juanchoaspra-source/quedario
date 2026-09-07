@@ -16,11 +16,14 @@ export function eventInput(body) {
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 500 || !Number.isFinite(+date) || +date <= Date.now()) throw new Error('Indica una fecha futura y un aforo de 1 a 500.');
   const category = ['cena', 'comida', 'cafe', 'concierto', 'ruta', 'motos', 'fiestas', 'teatro', 'cine', 'viaje', 'otro'].includes(body.category) ? body.category : 'otro';
   const detail = ['fiestas', 'viaje'].includes(category) ? text(body.detail, 80) : '';
+  const hasEndDate = ['ruta', 'fiestas', 'viaje'].includes(category);
+  const endDate = hasEndDate ? new Date(body.endDate || body.date) : undefined;
+  if (hasEndDate && (!Number.isFinite(+endDate) || +endDate < +date)) throw new Error('La fecha de fin debe ser igual o posterior a la de inicio.');
   const location = locationInput(body.location);
-  return { id: crypto.randomUUID(), title, place, category, detail, capacity, date: date.toISOString(), participants: [], comments: [], ...(location ? {location} : {}) };
+  return { id: crypto.randomUUID(), title, place, category, detail, capacity, date: date.toISOString(), ...(hasEndDate ? {endDate:endDate.toISOString()} : {}), participants: [], comments: [], ...(location ? {location} : {}) };
 }
 export function enroll(event, token, name) {
-  if (new Date(event.date) <= new Date()) throw new Error('Esta quedada ya ha comenzado.');
+  if (new Date(event.endDate || event.date) <= new Date()) throw new Error('Esta quedada ya ha terminado.');
   if (event.participants.some(participant => participant.token === token)) return;
   if (event.participants.length >= 1000) throw new Error('La lista está completa.');
   event.participants.push({ token, name: text(name, 60) });

@@ -65,6 +65,12 @@ function eventLabel(event) {
 function dayLabel(date) { return new Intl.DateTimeFormat('es-ES', {weekday:'long', day:'numeric', month:'long'}).format(date); }
 function timeLabel(date) { return new Intl.DateTimeFormat('es-ES', {hour:'2-digit', minute:'2-digit'}).format(date); }
 function dayKey(date) { return new Intl.DateTimeFormat('en-CA', {year:'numeric', month:'2-digit', day:'2-digit'}).format(date); }
+function dateTimeLabel(date) { return new Intl.DateTimeFormat('es-ES', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}).format(date); }
+function dateRangeLabel(event) {
+  if (!event.endDate || event.endDate === event.date) return '';
+  const start = new Date(event.date), end = new Date(event.endDate);
+  return dayKey(start) === dayKey(end) ? `De ${timeLabel(start)} a ${timeLabel(end)}` : `Del ${dateTimeLabel(start)} al ${dateTimeLabel(end)}`;
+}
 
 function eventCard(event) {
   const key = eventCategory(event);
@@ -73,8 +79,9 @@ function eventCard(event) {
   const past = new Date(event.date) <= new Date();
   const map = mapsUrl(event.place, event.location);
   const comments = event.comments || [];
+  const dateRange = dateRangeLabel(event);
   const commentsMarkup = comments.length ? `<section class="event-comments" aria-label="Comentarios"><h4>Comentarios <span>${comments.length}</span></h4><ul>${comments.map(comment => `<li><strong>${esc(comment.name)}${comment.mine ? ' (tú)' : ''}</strong><p>${esc(comment.text)}</p></li>`).join('')}</ul></section>` : '<section class="event-comments"><h4>Comentarios <span>0</span></h4><p class="muted">Aún no hay comentarios.</p></section>';
-  return `<article class="card event-card"><div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${group.owner ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
+  return `<article class="card event-card"><div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3>${dateRange ? `<p class="event-date-range">${esc(dateRange)}</p>` : ''}<p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${group.owner ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
 }
 
 function renderEvents(events) {
@@ -122,12 +129,28 @@ async function route() {
 $('#group-form').onsubmit = event => { event.preventDefault(); if (!validatePasswords(event.target)) return; action(async () => { id = crypto.randomUUID(); group = await api('', 'POST', Object.fromEntries(new FormData(event.target))); remember(); history.replaceState(null, '', '/'); location.hash = `g=${id}`; event.target.reset(); }); };
 
 function updateDetail() {
-  const category = $('#event-form select').value;
+  const form = $('#event-form');
+  const category = form.elements.category.value;
   const input = $('#detail-label input');
   const needed = category === 'fiestas' || category === 'viaje';
   $('#detail-label').hidden = !needed; input.disabled = !needed; input.required = needed;
   $('#detail-caption').textContent = category === 'fiestas' ? 'Fiestas de… (nombre)' : 'Viaje a… (destino)';
   input.placeholder = category === 'fiestas' ? 'Ej.: San Juan' : 'Ej.: Asturias';
+  const multiDay = ['ruta', 'fiestas', 'viaje'].includes(category);
+  const endDate = form.elements.endDate;
+  $('#end-date-label').hidden = !multiDay; endDate.disabled = !multiDay; endDate.required = multiDay;
+  $('#date-range-help').hidden = !multiDay;
+  $('#start-date-caption').textContent = multiDay ? 'Fecha y hora de inicio' : 'Fecha y hora';
+  if (multiDay) syncEndDate();
+}
+function syncEndDate() {
+  const form = $('#event-form');
+  const startDate = form.elements.date, endDate = form.elements.endDate;
+  endDate.min = startDate.value || '';
+  if (!endDate.value || endDate.dataset.followsStart === 'true' || endDate.value < startDate.value) {
+    endDate.value = startDate.value;
+    endDate.dataset.followsStart = 'true';
+  }
 }
 function draftLocation() {
   const form = $('#event-form');
@@ -147,13 +170,15 @@ function clearDraftLocation() {
   $('#location-status').textContent = 'Puedes comprobar el lugar en Google Maps o guardar tu ubicación actual como punto exacto.';
 }
 function openEventDialog() {
-  const form = $('#event-form'); form.reset(); notice(''); clearDraftLocation(); updateDetail(); updatePlacePreview(); $('#event-dialog').showModal(); form.elements.title.focus();
+  const form = $('#event-form'); form.reset(); delete form.elements.endDate.dataset.followsStart; notice(''); clearDraftLocation(); updateDetail(); updatePlacePreview(); $('#event-dialog').showModal(); form.elements.title.focus();
 }
 function currentPosition() {
   return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:12000, maximumAge:60000}));
 }
 
 $('#event-form select').onchange = updateDetail;
+$('#event-form').elements.date.addEventListener('input', syncEndDate);
+$('#event-form').elements.endDate.addEventListener('input', event => { event.target.dataset.followsStart = event.target.value === $('#event-form').elements.date.value ? 'true' : 'false'; });
 $('#event-form').elements.place.addEventListener('input', updatePlacePreview);
 document.querySelectorAll('[data-open-event]').forEach(button => button.onclick = openEventDialog);
 $('#close').onclick = () => $('#event-dialog').close();
@@ -180,6 +205,7 @@ $('#event-form').onsubmit = event => { event.preventDefault(); action(async () =
   const location = draftLocation();
   if (location) data.location = location;
   data.date = new Date(data.date).toISOString();
+  if (data.endDate) data.endDate = new Date(data.endDate).toISOString();
   group = await api('/events', 'POST', data);
   $('#event-dialog').close(); form.reset(); clearDraftLocation(); updateDetail(); render();
   notice('Actividad creada y añadida a la agenda.');
