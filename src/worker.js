@@ -37,7 +37,9 @@ export class Group {
           await setPassword(group, body.password);
         } else {
           if (!group) return locked();
+          if (group.banned.includes(token)) return locked();
           if (path.length === 1 && path[0] === 'unlock' && request.method === 'POST') {
+            if (group.closed && !group.members.some(m => m.token === token)) return locked();
             const name = text(body.name, 60);
             const now = Date.now();
             let attempts = await this.ctx.storage.get('attempts');
@@ -57,6 +59,21 @@ export class Group {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden modificar los ajustes.' }, 403);
             group.name = text(body.name, 80);
             if (body.password) await setPassword(group, body.password);
+          } else if (path.length === 1 && path[0] === 'status' && request.method === 'PATCH') {
+            if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden cerrar o reabrir el grupo.' }, 403);
+            if (typeof body.closed !== 'boolean') throw new Error('Estado no válido.');
+            group.closed = body.closed;
+          } else if (path.length === 2 && path[0] === 'members' && request.method === 'DELETE') {
+            if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden expulsar miembros.' }, 403);
+            const member = group.members.find(m => m.id === path[1]);
+            if (!member) throw new Error('Miembro no encontrado.');
+            if (isAdmin(group, member.token) && group.admins.length === 1) throw new Error('No se puede expulsar al último administrador.');
+            group.banned.push(member.token);
+            group.admins = group.admins.filter(t => t !== member.token);
+            group.members = group.members.filter(m => m.id !== member.id);
+            for (const event of group.events) event.participants = event.participants.filter(p => p.token !== member.token);
+            await this.ctx.storage.put('group', group);
+            if (member.token === token) return locked();
           } else if (path.length === 1 && path[0] === 'admins' && request.method === 'PATCH') {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden gestionar permisos.' }, 403);
             const member = group.members.find(m => m.id === body.memberId);
@@ -69,6 +86,7 @@ export class Group {
             }
           } else if (path[0] !== 'events') return json({ error: 'Ruta no encontrada.' }, 404);
           else if (path.length === 1 && request.method === 'POST') {
+            if (group.closed) throw new Error('El grupo está cerrado. Reábrelo para crear quedadas.');
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden crear quedadas.' }, 403);
             if (group.events.length >= 200) throw new Error('Límite de 200 quedadas por grupo.');
             group.events.push(eventInput(body));
@@ -76,6 +94,7 @@ export class Group {
             const event = group.events.find(e => e.id === path[1]);
             if (!event) return json({ error: 'Quedada no encontrada.' }, 404);
             if (path.length === 3 && path[2] === 'participants' && request.method === 'POST') {
+              if (group.closed) throw new Error('El grupo está cerrado y no admite inscripciones.');
               enroll(event, token, body.name);
               migrate(group);
               group.members.find(m => m.token === token).name = text(body.name, 60);
