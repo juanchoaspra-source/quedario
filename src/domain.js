@@ -6,8 +6,9 @@ export function eventInput(body) {
   const title = text(body.title), place = text(body.place, 200);
   const capacity = Number(body.capacity), date = new Date(body.date);
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 500 || !Number.isFinite(+date) || +date <= Date.now()) throw new Error('Indica una fecha futura y un aforo de 1 a 500.');
-  const category = ['cena', 'comida', 'cafe', 'concierto', 'ruta', 'otro'].includes(body.category) ? body.category : 'otro';
-  return { id: crypto.randomUUID(), title, place, category, capacity, date: date.toISOString(), participants: [] };
+  const category = ['cena', 'comida', 'cafe', 'concierto', 'ruta', 'motos', 'fiestas', 'teatro', 'cine', 'viaje', 'otro'].includes(body.category) ? body.category : 'otro';
+  const detail = ['fiestas', 'viaje'].includes(category) ? text(body.detail, 80) : '';
+  return { id: crypto.randomUUID(), title, place, category, detail, capacity, date: date.toISOString(), participants: [] };
 }
 export function enroll(event, token, name) {
   if (new Date(event.date) <= new Date()) throw new Error('Esta quedada ya ha comenzado.');
