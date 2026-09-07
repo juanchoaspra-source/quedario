@@ -35,7 +35,11 @@ $('#new-event').onclick=()=>$('#event-dialog').showModal();$('#close').onclick=(
 $('#events').onclick=e=>{const button=e.target.closest('[data-action]');if(!button)return;const event=button.dataset.event;if(button.dataset.action==='join'){joining=event;$('#join-dialog').showModal();return;}if(!confirm(button.dataset.action==='cancel'?'¿Cancelar esta quedada para todo el grupo?':'¿Salir de la quedada? La primera persona en espera ocupará tu plaza.'))return;action(async()=>{group=await api(`/events/${event}${button.dataset.action==='leave'?'/participants':''}`,'DELETE');render();});};
 $('#join-form').onsubmit=e=>{e.preventDefault();action(async()=>{group=await api(`/events/${joining}/participants`,'POST',Object.fromEntries(new FormData(e.target)));$('#join-dialog').close();render();});};
 $('#filters').innerHTML='<button class="secondary" data-category="all" aria-pressed="true">Todos</button>'+Object.entries(categories).map(([key,[name]])=>`<button class="secondary" data-category="${key}" aria-pressed="false">${icon(key)}${name}</button>`).join('');
-$('#filters').onclick=e=>{const button=e.target.closest('[data-category]');if(!button)return;filter=button.dataset.category;document.querySelectorAll('[data-category]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));render();};
+const categoryEmoji={cena:'🍽️',comida:'🥗',cafe:'☕',concierto:'🎵',ruta:'🥾',motos:'🏍️',fiestas:'🎉',teatro:'🎭',cine:'🎬',viaje:'✈️',otro:'⭐'};
+$('#category-picker').innerHTML='<option value="all">Todas las actividades</option>'+Object.entries(categories).map(([key,[name]])=>`<option value="${key}">${categoryEmoji[key]} ${name}</option>`).join('');
+function selectCategory(value){filter=value;$('#category-picker').value=value;document.querySelectorAll('[data-category]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.category===value)));render();}
+$('#filters').onclick=e=>{const button=e.target.closest('[data-category]');if(button)selectCategory(button.dataset.category);};
+$('#category-picker').onchange=e=>selectCategory(e.target.value);
 $('#past').onchange=render;$('#refresh').onclick=()=>action(load);
 $('#copy').onclick=()=>action(async()=>{await navigator.clipboard.writeText(groupUrl());notice('Enlace del grupo copiado.');});
 $('#share').onclick=()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Únete a ${group.name} en Quedario y apúntate a nuestros planes: ${groupUrl()}`)}`,'_blank','noopener,noreferrer');
