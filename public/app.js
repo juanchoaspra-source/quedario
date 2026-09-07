@@ -4,9 +4,11 @@ function icon(key){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let token, saved, group, id, filter = 'all', joining;
 try { token = localStorage.getItem('quedario.identity') || crypto.randomUUID(); localStorage.setItem('quedario.identity', token); saved = JSON.parse(localStorage.getItem('quedario.groups') || '{}'); } catch { $('#notice').textContent = 'Activa el almacenamiento de este navegador para usar Quedario.'; throw new Error('Storage unavailable'); }
-function notice(message){$('#notice').textContent = message;}
+function notice(message){$('#notice').textContent = message;const inline=$('#unlock-status');if(inline)inline.textContent=message;}
+window.addEventListener('error',()=>notice('No se pudo completar la acción. Recarga la página e inténtalo de nuevo.'));
+window.addEventListener('unhandledrejection',()=>notice('No se pudo completar la acción. Comprueba tu conexión y vuelve a intentarlo.'));
 function remember(){saved[id] = group.name;localStorage.setItem('quedario.groups',JSON.stringify(saved));}
-async function api(path='', method='GET', body){const r = await fetch(`/api/groups/${id}${path}`, {method, headers:{'Content-Type':'application/json','X-Participant':token}, ...(body ? {body:JSON.stringify(body)}:{})}); const data = await r.json();if(!r.ok){if(data.locked){group=null;$('#group').hidden=true;$('#members-section').hidden=true;$('#locked').hidden=false;delete saved[id];localStorage.setItem('quedario.groups',JSON.stringify(saved));}throw new Error(data.error || 'No se pudo completar.');}return data;}
+async function api(path='', method='GET', body){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);let r;try{r = await fetch(`/api/groups/${id}${path}`, {method, signal:controller.signal, headers:{'Content-Type':'application/json','X-Participant':token}, ...(body ? {body:JSON.stringify(body)}:{})});}catch(error){throw new Error(error.name==='AbortError'?'La conexión está tardando demasiado. Pulsa Entrar al grupo para reintentar.':'No se pudo conectar. Comprueba tu conexión y vuelve a intentarlo.');}finally{clearTimeout(timeout);}let data;try{data=await r.json();}catch{throw new Error('El servidor no ha podido responder. Vuelve a intentarlo en unos instantes.');}if(!r.ok){if(data.locked){group=null;$('#group').hidden=true;$('#members-section').hidden=true;$('#locked').hidden=false;delete saved[id];localStorage.setItem('quedario.groups',JSON.stringify(saved));}throw new Error(data.error || 'No se pudo completar.');}return data;}
 async function action(fn){const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);try{notice('');await fn();}catch(e){notice(e.message || 'Comprueba tu conexión e inténtalo de nuevo.');}finally{buttons.forEach(b=>b.disabled=false);}}
 function render(){
   $('#locked').hidden=true;$('#group').hidden=false;$('#members-section').hidden=false;$('#settings').hidden=!group.owner;
@@ -46,7 +48,14 @@ $('#share').onclick=()=>window.open(`https://wa.me/?text=${encodeURIComponent(`�
 $('#settings').onclick=()=>{const form=$('#settings-form');form.elements.name.value=group.name;form.elements.password.value='';form.elements.passwordConfirm.value='';form.elements.passwordConfirm.setCustomValidity('');form.elements.passwordConfirm.required=false;$('#settings-dialog').showModal();};
 $('#settings-close').onclick=()=>$('#settings-dialog').close();
 $('#settings-form').onsubmit=e=>{e.preventDefault();if(!validatePasswords(e.target))return;action(async()=>{group=await api('/settings','PATCH',Object.fromEntries(new FormData(e.target)));remember();render();$('#settings-dialog').close();notice('Ajustes guardados.');});};
-$('#unlock-form').onsubmit=e=>{e.preventDefault();action(async()=>{group=await api('/unlock','POST',Object.fromEntries(new FormData(e.target)));e.target.reset();remember();render();});};
+$('#unlock-form').onsubmit=e=>{
+ e.preventDefault();const form=e.currentTarget;
+ if(!form.elements.name.value.trim()){notice('Escribe tu nombre para entrar.');form.elements.name.focus();return;}
+ if(!form.elements.password.value){notice('Escribe la contraseña del grupo.');form.elements.password.focus();return;}
+ const body={name:form.elements.name.value.trim(),password:form.elements.password.value};
+ const submit=$('#unlock-submit');
+ action(async()=>{submit.textContent='Entrando…';notice('Comprobando acceso…');try{group=await api('/unlock','POST',body);remember();render();form.reset();notice('');window.scrollTo({top:0,behavior:'smooth'});}finally{submit.textContent='Entrar al grupo';}});
+};
 $('#members').onclick=e=>{const expel=e.target.closest('[data-expel]');if(expel){if(!confirm('¿Expulsar a este miembro? Perderá el acceso y se eliminarán sus inscripciones, liberando sus plazas.'))return;action(async()=>{group=await api('/members/'+expel.dataset.expel,'DELETE');render();});return;}const b=e.target.closest('[data-member]');if(!b)return;if(!confirm(b.dataset.admin==='true'?'¿Nombrar administrador? Podrá cambiar el nombre, la contraseña y los permisos del grupo.':'¿Retirar los permisos de administración?'))return;action(async()=>{group=await api('/admins','PATCH',{memberId:b.dataset.member,admin:b.dataset.admin==='true'});remember();render();});};
 $('#group-status').onclick=()=>{const closed=!group.closed;if(!confirm(closed?'¿Cerrar el grupo? Se conservará para consulta y se bloquearán nuevas entradas e inscripciones.':'¿Reabrir el grupo para admitir entradas e inscripciones?'))return;action(async()=>{group=await api('/status','PATCH',{closed});render();$('#settings-dialog').close();notice(closed?'Grupo cerrado.':'Grupo reabierto.');});};
 function validatePasswords(form){
