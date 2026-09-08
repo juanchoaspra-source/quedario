@@ -79,6 +79,10 @@ function mapsUrl(place, location) {
   const query = location ? `${location.latitude},${location.longitude}` : place;
   return `https://www.google.com/maps/search/?${new URLSearchParams({api:'1', query}).toString()}`;
 }
+function mapEmbedUrl(place, location) {
+  const query = location ? `${location.latitude},${location.longitude}` : place;
+  return `https://www.google.com/maps?${new URLSearchParams({output:'embed', q:query}).toString()}`;
+}
 function eventCategory(event) { return categories[event.category] ? event.category : 'otro'; }
 function eventLabel(event) {
   const category = eventCategory(event);
@@ -101,11 +105,12 @@ function eventCard(event) {
   const mine = event.participants.find(participant => participant.mine);
   const full = event.participants.length >= event.capacity;
   const past = new Date(event.date) <= new Date();
-  const map = mapsUrl(event.place, event.location);
+  const map = event.mapUrl || mapsUrl(event.place, event.location);
+  const embed = mapEmbedUrl(event.place, event.location);
   const comments = event.comments || [];
   const dateRange = dateRangeLabel(event);
   const commentsMarkup = comments.length ? `<section class="event-comments" aria-label="Comentarios"><h4>Comentarios <span>${comments.length}</span></h4><ul>${comments.map(comment => `<li><strong>${esc(comment.name)}${comment.mine ? ' (tú)' : ''}</strong><p>${esc(comment.text)}</p></li>`).join('')}</ul></section>` : '<section class="event-comments"><h4>Comentarios <span>0</span></h4><p class="muted">Aún no hay comentarios.</p></section>';
-  return `<article class="card event-card">${event.image ? `<img class="event-image" src="${esc(event.image)}" alt="Cartel o imagen de ${esc(event.title)}">` : ''}<div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3>${dateRange ? `<p class="event-date-range">${esc(dateRange)}</p>` : ''}<p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${event.canEdit ? `<button class="secondary" data-event="${esc(event.id)}" data-action="edit">Editar plan</button>` : ''}${event.canCancel ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
+  return `<article class="card event-card">${event.image ? `<img class="event-image" src="${esc(event.image)}" alt="Cartel o imagen de ${esc(event.title)}">` : ''}<div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3>${dateRange ? `<p class="event-date-range">${esc(dateRange)}</p>` : ''}<p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.mapUrl ? 'Abrir enlace de Google Maps ↗' : event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div><details class="event-map"><summary>Ver mapa aquí</summary><iframe title="Mapa de ${esc(event.title)}" src="${esc(embed)}" loading="lazy"></iframe></details>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${event.canEdit ? `<button class="secondary" data-event="${esc(event.id)}" data-action="edit">Editar plan</button>` : ''}${event.canCancel ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
 }
 
 function renderEvents(events) {
@@ -243,12 +248,12 @@ function draftLocation() {
   return {latitude:Number(form.dataset.latitude), longitude:Number(form.dataset.longitude)};
 }
 function updatePlacePreview() {
-  const place = $('#event-form').elements.place.value.trim();
+  const form = $('#event-form'), place = form.elements.place.value.trim(), mapUrl = form.elements.mapUrl.value.trim();
   const location = draftLocation();
   const link = $('#place-preview');
-  if (!place && !location) { link.hidden = true; link.removeAttribute('href'); return; }
-  link.href = mapsUrl(place, location); link.hidden = false;
-  link.textContent = location ? 'Comprobar ubicación exacta en Google Maps ↗' : 'Buscar en Google Maps ↗';
+  if (!place && !location && !mapUrl) { link.hidden = true; link.removeAttribute('href'); return; }
+  link.href = mapUrl || mapsUrl(place, location); link.hidden = false;
+  link.textContent = mapUrl ? 'Comprobar el enlace de Google Maps ↗' : location ? 'Comprobar ubicación exacta en Google Maps ↗' : 'Buscar en Google Maps ↗';
 }
 function clearDraftLocation() {
   const form = $('#event-form'); delete form.dataset.latitude; delete form.dataset.longitude;
@@ -264,7 +269,7 @@ function openEventDialog(eventToEdit) {
   if (eventToEdit) {
     form.elements.title.value = eventToEdit.title; form.elements.category.value = eventToEdit.category; form.elements.detail.value = eventToEdit.detail || '';
     form.elements.date.value = localInputDate(eventToEdit.date); form.elements.endDate.value = eventToEdit.endDate ? localInputDate(eventToEdit.endDate) : '';
-    form.elements.city.value = eventToEdit.city || ''; form.elements.place.value = eventToEdit.place; form.elements.capacity.value = eventToEdit.capacity;
+    form.elements.city.value = eventToEdit.city || ''; form.elements.place.value = eventToEdit.place; form.elements.mapUrl.value = eventToEdit.mapUrl || ''; form.elements.capacity.value = eventToEdit.capacity;
     if (eventToEdit.location) { form.dataset.latitude = String(eventToEdit.location.latitude); form.dataset.longitude = String(eventToEdit.location.longitude); }
   }
   updateEventImagePreview(eventToEdit?.image || '');
@@ -305,6 +310,7 @@ $('#event-form select').onchange = updateDetail;
 $('#event-form').elements.date.addEventListener('input', syncEndDate);
 $('#event-form').elements.endDate.addEventListener('input', event => { event.target.dataset.followsStart = event.target.value === $('#event-form').elements.date.value ? 'true' : 'false'; });
 $('#event-form').elements.place.addEventListener('input', updatePlacePreview);
+$('#event-form').elements.mapUrl.addEventListener('input', updatePlacePreview);
 $('#event-form').elements.imageFile?.addEventListener('change', event => action(async () => { const file = event.target.files[0]; if (!file) return; const image = await compressEventImage(file); const form = $('#event-form'); form.dataset.image = image; delete form.dataset.removeImage; updateEventImagePreview(image); }));
 document.querySelectorAll('[data-open-event]').forEach(button => button.onclick = () => openEventDialog());
 $('#close').onclick = () => $('#event-dialog').close();

@@ -15,7 +15,7 @@ const securityHeaders = {
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'geolocation=(self), camera=(), microphone=()',
   'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://accounts.google.com/gsi/client https://unpkg.com; style-src 'self' https://accounts.google.com/gsi/style https://unpkg.com; img-src 'self' data: https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://unpkg.com; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/"
+  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://accounts.google.com/gsi/client https://unpkg.com; style-src 'self' https://accounts.google.com/gsi/style https://unpkg.com; img-src 'self' data: https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://unpkg.com; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/ https://www.google.com"
 };
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { ...securityHeaders, ...headers } });
 const groupPlatform = value => ['whatsapp', 'telegram', 'facebook', 'otro'].includes(value) ? value : 'whatsapp';

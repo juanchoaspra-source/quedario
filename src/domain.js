@@ -16,6 +16,15 @@ function imageInput(value) {
   if (typeof value !== 'string' || !/^data:image\/webp;base64,[a-z0-9+/=]+$/i.test(value) || value.length > 180000) throw new Error('La imagen debe ser un archivo WebP reducido de menos de 130 KB.');
   return value;
 }
+function mapUrlInput(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value !== 'string' || value.length > 1000) throw new Error('El enlace de Google Maps no es válido.');
+  let url;
+  try { url = new URL(value.trim()); } catch { throw new Error('El enlace de Google Maps no es válido.'); }
+  const host = url.hostname.toLowerCase();
+  if (url.protocol !== 'https:' || !(host === 'maps.app.goo.gl' || host.endsWith('.google.com') || host === 'google.com')) throw new Error('Pega un enlace de Google Maps.');
+  return url.href;
+}
 export function eventInput(body) {
   const title = text(body.title), place = text(body.place, 200);
   const city = typeof body.city === 'string' && body.city.trim() ? text(body.city, 80) : '';
@@ -28,7 +37,8 @@ export function eventInput(body) {
   if (hasEndDate && (!Number.isFinite(+endDate) || +endDate < +date)) throw new Error('La fecha de fin debe ser igual o posterior a la de inicio.');
   const location = locationInput(body.location);
   const image = imageInput(body.image);
-  return { id: crypto.randomUUID(), title, place, city, category, detail, capacity, date: date.toISOString(), ...(hasEndDate ? {endDate:endDate.toISOString()} : {}), participants: [], comments: [], ...(location ? {location} : {}), ...(image !== undefined ? {image} : {}) };
+  const mapUrl = mapUrlInput(body.mapUrl);
+  return { id: crypto.randomUUID(), title, place, city, category, detail, capacity, date: date.toISOString(), ...(hasEndDate ? {endDate:endDate.toISOString()} : {}), participants: [], comments: [], ...(location ? {location} : {}), ...(mapUrl ? {mapUrl} : {}), ...(image !== undefined ? {image} : {}) };
 }
 export function enroll(event, token, name) {
   if (new Date(event.endDate || event.date) <= new Date()) throw new Error('Esta quedada ya ha terminado.');

@@ -33,6 +33,11 @@ test('rutas, fiestas y viajes guardan fecha de inicio y fin',()=>{
  assert.equal(dinner.endDate,undefined);
  assert.throws(()=>eventInput({title:'Fiestas',place:'Pueblo',date:'2099-04-10T09:00',endDate:'2099-04-09T09:00',capacity:8,category:'fiestas',detail:'San Juan'}));
 });
+test('acepta enlaces de Google Maps y rechaza otros enlaces como ubicación',()=>{
+ const event=eventInput({title:'Cena',place:'Centro',date:'2099-01-01',capacity:8,mapUrl:'https://maps.app.goo.gl/ejemplo'});
+ assert.equal(event.mapUrl,'https://maps.app.goo.gl/ejemplo');
+ assert.throws(()=>eventInput({title:'Cena',place:'Centro',date:'2099-01-01',capacity:8,mapUrl:'https://example.com/lugar'}));
+});
 test('acepta las actividades deportivas, culturales y de ocio',()=>{
  for (const category of ['padel','correr','futbol','gimnasio','bici','senderismo','yoga','juegos','compras','museo','baile','brunch','playa']) {
   const event=eventInput({title:'Plan deportivo',place:'Polideportivo',date:'2099-01-01',capacity:8,category});
