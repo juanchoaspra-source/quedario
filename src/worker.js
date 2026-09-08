@@ -1,5 +1,5 @@
 import { text, eventInput, enroll, addComment, publicGroup } from './domain.js';
-import { migrate, isAdmin, canRead, ensureMember, passwordMatches, setPassword } from './access.js';
+import { migrate, isAdmin, canRead, ensureMember, linkLegacyIdentity, passwordMatches, setPassword } from './access.js';
 import { slugify, namesRequest } from './names.js';
 import { analyticsRequest } from './analytics.js';
 import { rateLimit } from './limits.js';
@@ -29,7 +29,7 @@ export default {
     if (!url.pathname.startsWith('/api/')) return secure(await env.ASSETS.fetch(request));
     if (request.method !== 'GET' && request.headers.get('Origin') !== url.origin) return json({ error: 'Origen no permitido.' }, 403);
     if (request.method !== 'GET' && !request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) return json({ error: 'El contenido debe ser JSON.' }, 415);
-    const bodyLimit = url.pathname === '/api/auth/profile' ? 120000 : 16384;
+    const bodyLimit = url.pathname === '/api/auth/profile' ? 120000 : url.pathname.includes('/events') ? 200000 : 16384;
     if (Number(request.headers.get('Content-Length')) > bodyLimit) return json({ error: 'Petición demasiado grande.' }, 413);
     const clientKey = request.headers.get('CF-Connecting-IP') || 'unknown';
     if (url.pathname === '/api/auth/config' && request.method === 'GET') return json({ googleClientId: env.GOOGLE_CLIENT_ID || '' });
@@ -72,7 +72,10 @@ export default {
     }
     const auth = session ? await (await authRequest(env, '/resolve', { session })).json() : null;
     const headers = new Headers(request.headers);
-    if (auth?.account?.id) headers.set('X-Participant', auth.account.id);
+    if (auth?.account?.id) {
+      headers.set('X-Legacy-Participant', request.headers.get('X-Participant') || '');
+      headers.set('X-Participant', auth.account.id);
+    }
     headers.set('X-Quedario-Rate-Key', request.headers.get('CF-Connecting-IP') || 'unknown');
     return secure(await env.GROUPS.get(env.GROUPS.idFromName(match[1])).fetch(new Request(request, { headers })));
   }
@@ -87,6 +90,7 @@ export class Group {
         if(await this.ctx.storage.get('deleted')) return json({error:'Este grupo ha sido borrado.',deleted:true},410);
         let group = await this.ctx.storage.get('group');
         if (group) migrate(group);
+        if (group) linkLegacyIdentity(group, request.headers.get('X-Legacy-Participant'), token);
         const locked = () => json({ error: 'Introduce la contraseña del grupo para acceder.', locked: true }, 401);
         if (request.method === 'GET' && path.length === 0) {
           if (!group || !canRead(group, token)) return locked();
@@ -94,7 +98,7 @@ export class Group {
           return json(publicGroup(group, token));
         }
         const raw = await request.text();
-        if (raw.length > 16384) return json({ error: 'Petición demasiado grande.' }, 413);
+        if (raw.length > 200000) return json({ error: 'Petición demasiado grande.' }, 413);
         const body = raw ? JSON.parse(raw) : {};
         if (request.method === 'POST' && path.length === 0) {
           if (group) return locked();

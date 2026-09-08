@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Group } from '../src/worker.js';
+import { linkLegacyIdentity } from '../src/access.js';
+test('vincula el navegador previo con la cuenta autenticada sin perder permisos ni planes',()=>{
+ const legacy=crypto.randomUUID(), account=crypto.randomUUID();
+ const group={owner:legacy,admins:[legacy],members:[{id:'member',token:legacy,name:'Ana',version:1}],banned:[],events:[{creatorToken:legacy,participants:[{token:legacy,name:'Ana'}],comments:[{token:legacy,name:'Ana'}]}]};
+ assert.equal(linkLegacyIdentity(group,legacy,account),true);
+ assert.equal(group.owner,account); assert.deepEqual(group.admins,[account]); assert.equal(group.members[0].token,account); assert.equal(group.events[0].creatorToken,account); assert.equal(group.events[0].participants[0].token,account); assert.equal(group.events[0].comments[0].token,account);
+});
 test('migra el grupo existente, protege datos, administra permisos y revoca contraseñas', async () => {
  const owner=crypto.randomUUID(), guest=crypto.randomUUID(), stranger=crypto.randomUUID();
  const map=new Map([['group',{name:'Grupo existente',owner,events:[]}]]);

@@ -105,7 +105,7 @@ function eventCard(event) {
   const comments = event.comments || [];
   const dateRange = dateRangeLabel(event);
   const commentsMarkup = comments.length ? `<section class="event-comments" aria-label="Comentarios"><h4>Comentarios <span>${comments.length}</span></h4><ul>${comments.map(comment => `<li><strong>${esc(comment.name)}${comment.mine ? ' (tú)' : ''}</strong><p>${esc(comment.text)}</p></li>`).join('')}</ul></section>` : '<section class="event-comments"><h4>Comentarios <span>0</span></h4><p class="muted">Aún no hay comentarios.</p></section>';
-  return `<article class="card event-card"><div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3>${dateRange ? `<p class="event-date-range">${esc(dateRange)}</p>` : ''}<p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${event.canEdit ? `<button class="secondary" data-event="${esc(event.id)}" data-action="edit">Editar plan</button>` : ''}${event.canCancel ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
+  return `<article class="card event-card">${event.image ? `<img class="event-image" src="${esc(event.image)}" alt="Cartel o imagen de ${esc(event.title)}">` : ''}<div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3>${dateRange ? `<p class="event-date-range">${esc(dateRange)}</p>` : ''}<p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${event.canEdit ? `<button class="secondary" data-event="${esc(event.id)}" data-action="edit">Editar plan</button>` : ''}${event.canCancel ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
 }
 
 function renderEvents(events) {
@@ -204,14 +204,35 @@ function localInputDate(value) {
 }
 function openEventDialog(eventToEdit) {
   if (!eventToEdit || !eventToEdit.id) eventToEdit = undefined;
-  const form = $('#event-form'); form.reset(); delete form.elements.endDate.dataset.followsStart; notice(''); clearDraftLocation(); editingId = eventToEdit?.id;
+  const form = $('#event-form'); form.reset(); delete form.elements.endDate.dataset.followsStart; delete form.dataset.image; delete form.dataset.removeImage; notice(''); clearDraftLocation(); editingId = eventToEdit?.id;
   if (eventToEdit) {
     form.elements.title.value = eventToEdit.title; form.elements.category.value = eventToEdit.category; form.elements.detail.value = eventToEdit.detail || '';
     form.elements.date.value = localInputDate(eventToEdit.date); form.elements.endDate.value = eventToEdit.endDate ? localInputDate(eventToEdit.endDate) : '';
     form.elements.city.value = eventToEdit.city || ''; form.elements.place.value = eventToEdit.place; form.elements.capacity.value = eventToEdit.capacity;
     if (eventToEdit.location) { form.dataset.latitude = String(eventToEdit.location.latitude); form.dataset.longitude = String(eventToEdit.location.longitude); }
   }
+  updateEventImagePreview(eventToEdit?.image || '');
   $('#event-dialog h2').textContent = eventToEdit ? 'Editar actividad' : 'Un nuevo plan'; form.querySelector('button[type="submit"]').textContent = eventToEdit ? 'Guardar cambios' : 'Crear quedada'; updateDetail(); updatePlacePreview(); $('#event-dialog').showModal(); form.elements.title.focus();
+}
+function updateEventImagePreview(image) {
+  const preview = $('#event-image-preview');
+  if (!image) { preview.hidden = true; preview.innerHTML = ''; return; }
+  preview.hidden = false;
+  preview.innerHTML = `<img src="${esc(image)}" alt="Vista previa de la imagen"><button type="button" class="secondary" id="remove-event-image">Quitar imagen</button>`;
+  $('#remove-event-image').onclick = () => { const form = $('#event-form'); delete form.dataset.image; form.dataset.removeImage = 'true'; form.elements.imageFile.value = ''; updateEventImagePreview(''); };
+}
+async function compressEventImage(file) {
+  if (!file?.type.startsWith('image/')) throw new Error('Selecciona un archivo de imagen válido.');
+  const source = await createImageBitmap(file);
+  let width = Math.min(960, source.width), height = Math.max(1, Math.round(source.height * width / source.width));
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(source, 0, 0, width, height);
+    const image = canvas.toDataURL('image/webp', Math.max(.55, .78 - attempt * .08));
+    if (image.length <= 180000) return image;
+    width = Math.round(width * .75); height = Math.round(height * .75);
+  }
+  throw new Error('No se pudo reducir esa imagen. Prueba con otra más pequeña.');
 }
 function currentPosition() {
   return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:12000, maximumAge:60000}));
@@ -221,6 +242,7 @@ $('#event-form select').onchange = updateDetail;
 $('#event-form').elements.date.addEventListener('input', syncEndDate);
 $('#event-form').elements.endDate.addEventListener('input', event => { event.target.dataset.followsStart = event.target.value === $('#event-form').elements.date.value ? 'true' : 'false'; });
 $('#event-form').elements.place.addEventListener('input', updatePlacePreview);
+$('#event-form').elements.imageFile.addEventListener('change', event => action(async () => { const file = event.target.files[0]; if (!file) return; const image = await compressEventImage(file); const form = $('#event-form'); form.dataset.image = image; delete form.dataset.removeImage; updateEventImagePreview(image); }));
 document.querySelectorAll('[data-open-event]').forEach(button => button.onclick = () => openEventDialog());
 $('#close').onclick = () => $('#event-dialog').close();
 $('#join-close').onclick = () => $('#join-dialog').close();
@@ -244,6 +266,9 @@ $('#use-location').onclick = () => action(async () => {
 $('#event-form').onsubmit = event => { event.preventDefault(); action(async () => {
   const form = event.target;
   const data = Object.fromEntries(new FormData(form));
+  delete data.imageFile;
+  if (form.dataset.image) data.image = form.dataset.image;
+  else if (form.dataset.removeImage === 'true') data.image = '';
   const location = draftLocation();
   if (location) data.location = location;
   data.date = new Date(data.date).toISOString();

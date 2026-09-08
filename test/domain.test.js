@@ -39,6 +39,12 @@ test('acepta las actividades deportivas, culturales y de ocio',()=>{
   assert.equal(event.category,category);
  }
 });
+test('guarda un cartel WebP reducido y rechaza formatos o tamaños no seguros',()=>{
+ const image='data:image/webp;base64,' + 'a'.repeat(100);
+ assert.equal(eventInput({title:'Película',place:'Cine',date:'2099-01-01',capacity:8,image}).image,image);
+ assert.throws(()=>eventInput({title:'Película',place:'Cine',date:'2099-01-01',capacity:8,image:'data:image/png;base64,abc'}));
+ assert.throws(()=>eventInput({title:'Película',place:'Cine',date:'2099-01-01',capacity:8,image:'data:image/webp;base64,' + 'a'.repeat(180001)}));
+});
 test('guarda comentarios y oculta la identidad interna de quien comenta',()=>{
  const event=eventInput({title:'Cena',place:'Centro',date:'2099-01-01',capacity:4});
  addComment(event,'token-secreto','Ana','He reservado mesa para cuatro.');
