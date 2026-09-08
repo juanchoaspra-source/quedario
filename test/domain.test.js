@@ -25,12 +25,18 @@ test('guarda una ubicación exacta válida y rechaza coordenadas inválidas',()=
 });
 test('rutas, fiestas y viajes guardan fecha de inicio y fin',()=>{
  const trip=eventInput({title:'Escapada',place:'Asturias',date:'2099-04-10T09:00',endDate:'2099-04-13T18:00',capacity:8,category:'viaje',detail:'Asturias'});
- assert.equal(trip.endDate,'2099-04-13T18:00:00.000Z');
+ assert.equal(trip.endDate,new Date('2099-04-13T18:00').toISOString());
  const dayRoute=eventInput({title:'Ruta corta',place:'Sierra',date:'2099-04-10T09:00',capacity:8,category:'ruta'});
  assert.equal(dayRoute.endDate,dayRoute.date);
  const dinner=eventInput({title:'Cena',place:'Centro',date:'2099-04-10T20:00',endDate:'2099-04-12T20:00',capacity:8,category:'cena'});
  assert.equal(dinner.endDate,undefined);
  assert.throws(()=>eventInput({title:'Fiestas',place:'Pueblo',date:'2099-04-10T09:00',endDate:'2099-04-09T09:00',capacity:8,category:'fiestas',detail:'San Juan'}));
+});
+test('acepta pádel y correr como actividades',()=>{
+ for (const category of ['padel','correr']) {
+  const event=eventInput({title:'Plan deportivo',place:'Polideportivo',date:'2099-01-01',capacity:8,category});
+  assert.equal(event.category,category);
+ }
 });
 test('guarda comentarios y oculta la identidad interna de quien comenta',()=>{
  const event=eventInput({title:'Cena',place:'Centro',date:'2099-01-01',capacity:4});

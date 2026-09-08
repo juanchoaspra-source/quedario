@@ -1,6 +1,10 @@
 const $ = selector => document.querySelector(selector);
 const categories = { cena: ['Cena','M4 3v7m4-7v7M6 3v18M3 10h6M17 3v18m0-18c-5 5-5 10 0 10'], comida: ['Comida','M3 12a9 9 0 0 1 18 0M2 16h20M12 3v2M5 20h14'], cafe: ['Café','M4 8h12v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4ZM16 9h2a3 3 0 0 1 0 6h-2M7 2v3m5-3v3'], concierto: ['Concierto','M9 18V5l11-2v13M9 8l11-2M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3M20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3'], ruta: ['Ruta','m2 20 7-14 5 9 3-5 5 10ZM14 4h5m-3-3v6'], motos: ['Club de motos','M8 17a3 3 0 1 1-6 0 3 3 0 0 1 6 0M22 17a3 3 0 1 1-6 0 3 3 0 0 1 6 0M5 17l5-7h5l4 7M8 17h6l3-5M14 6h3l2 5M8 10H5'], fiestas: ['Fiestas','m3 21 5-14 9 9ZM10 3v2m7-2-2 4m6 2-4 2M5 14l5 5'], teatro: ['Teatro','M3 4l8 2v6c0 4-4 6-4 6s-4-2-4-6ZM13 7l8-3v8c0 4-4 6-4 6M5 9h1m2 1h1M5 13q2 2 4 0m6-3h1m2-1h1m-4 5q2-2 4 0'], cine: ['Cine','M3 8h18v13H3ZM3 8V3h18v5M7 3l-3 5m9-5-3 5m9-5-3 5m-6 4 5 3-5 3Z'], viaje: ['Viaje','m3 10 7 2 6-8c2-2 4-1 3 1l-5 9 5 4-2 2-6-3-4 4-2-1 2-6-5-2Z'], otro: ['Otro plan','m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z'] };
 const categoryEmoji = {cena:'🍽️',comida:'🥗',cafe:'☕',concierto:'🎵',ruta:'🥾',motos:'🏍️',fiestas:'🎉',teatro:'🎭',cine:'🎬',viaje:'✈️',otro:'⭐'};
+categories.padel = ['Pádel','M5 3h8a5 5 0 0 1 0 10H9l-5 8V3ZM11 8h.01'];
+categories.correr = ['Correr','M13 5a2 2 0 1 0 0 .01M9 22l2-6 2 2v4m-1-6 3-5 4 2m-8-2 3 1 2-3'];
+categoryEmoji.padel = '🎾';
+categoryEmoji.correr = '🏃';
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${categories[key][1]}"/></svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 let token, saved, group, id, filter = 'all', joining;
