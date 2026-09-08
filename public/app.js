@@ -5,6 +5,14 @@ categories.padel = ['Pádel','M5 3h8a5 5 0 0 1 0 10H9l-5 8V3ZM11 8h.01'];
 categories.correr = ['Correr','M13 5a2 2 0 1 0 0 .01M9 22l2-6 2 2v4m-1-6 3-5 4 2m-8-2 3 1 2-3'];
 categoryEmoji.padel = '🎾';
 categoryEmoji.correr = '🏃';
+const categoryGroups = {
+  deporte: {label:'Deporte', categories:['padel','correr']},
+  salir: {label:'Comer y salir', categories:['cafe','comida','cena','fiestas']},
+  cultura: {label:'Cultura', categories:['cine','teatro','concierto']},
+  aireLibre: {label:'Aire libre', categories:['ruta','motos']},
+  escapadas: {label:'Escapadas', categories:['viaje']},
+  otros: {label:'Otros planes', categories:['otro']}
+};
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${categories[key][1]}"/></svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 let token, saved, group, id, filter = 'all', joining;
@@ -225,8 +233,10 @@ $('#events').onclick = event => {
 };
 $('#join-form').onsubmit = event => { event.preventDefault(); action(async () => { group = await api(`/events/${joining}/participants`, 'POST', Object.fromEntries(new FormData(event.target))); $('#join-dialog').close(); render(); notice('Te has apuntado a la actividad.'); }); };
 
+const categoryOptions = groups => Object.values(groups).map(group => `<optgroup label="${esc(group.label)}">${group.categories.map(key => `<option value="${key}">${categoryEmoji[key]} ${esc(categories[key][0])}</option>`).join('')}</optgroup>`).join('');
+$('#event-form').elements.category.innerHTML = categoryOptions(categoryGroups);
 $('#filters').innerHTML = '<button class="secondary" data-category="all" aria-pressed="true">Todos</button>' + Object.entries(categories).map(([key, [name]]) => `<button class="secondary" data-category="${key}" aria-pressed="false">${icon(key)}${name}</button>`).join('');
-$('#category-picker').innerHTML = '<option value="all">Todas las actividades</option>' + Object.entries(categories).map(([key, [name]]) => `<option value="${key}">${categoryEmoji[key]} ${name}</option>`).join('');
+$('#category-picker').innerHTML = '<option value="all">Todas las actividades</option>' + categoryOptions(categoryGroups);
 function selectCategory(value) { filter = value; $('#category-picker').value = value; document.querySelectorAll('[data-category]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.category === value))); render(); }
 $('#filters').onclick = event => { const button = event.target.closest('[data-category]'); if (button) selectCategory(button.dataset.category); };
 $('#category-picker').onchange = event => selectCategory(event.target.value);
