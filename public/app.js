@@ -3,15 +3,27 @@ const categories = { cena: ['Cena','M4 3v7m4-7v7M6 3v18M3 10h6M17 3v18m0-18c-5 5
 const categoryEmoji = {cena:'🍽️',comida:'🥗',cafe:'☕',concierto:'🎵',ruta:'🥾',motos:'🏍️',fiestas:'🎉',teatro:'🎭',cine:'🎬',viaje:'✈️',otro:'⭐'};
 categories.padel = ['Pádel','M5 3h8a5 5 0 0 1 0 10H9l-5 8V3ZM11 8h.01'];
 categories.correr = ['Correr','M13 5a2 2 0 1 0 0 .01M9 22l2-6 2 2v4m-1-6 3-5 4 2m-8-2 3 1 2-3'];
+categories.futbol = ['Fútbol','M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0 3 4-3 3-3-3 3-4Zm-3 7 3 3 3-3m-6 0-3 2m9-2 3 2m-9 1-1 4m4-4v4m-3 0 3 2 3-2'];
+categories.gimnasio = ['Gimnasio','M3 9v6m3-9v12m3-9v6h6V9m3-3v12m3-9v6'];
+categories.bici = ['Bici','M7 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0M23 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0M7 18l5-9h4l3 9M10 12h6M14 5h3'];
+categories.senderismo = ['Senderismo','m3 21 6-14 4 7 3-5 5 12ZM12 3h5m-3-2v5'];
+categories.yoga = ['Yoga','M12 5a2 2 0 1 0 0 .01M5 21c2-5 4-7 7-7s5 2 7 7M7 12l5 2 5-2m-10 0 2-4m8 4-2-4'];
+categories.juegos = ['Juegos de mesa','M4 4h16v16H4ZM8 4v16m8-16v16M4 8h16m-16 8h16'];
+categories.compras = ['Compras y mercadillo','M5 8h14l-1 12H6L5 8Zm3 0a4 4 0 0 1 8 0'];
+categories.museo = ['Exposición y museo','M3 10h18M5 10V8l7-4 7 4v2M6 20h12M8 10v8m4-8v8m4-8v8'];
+categories.baile = ['Baile','M13 5a2 2 0 1 0 0 .01M9 21l2-6 3 2 2 4m-3-6 3-5 4 2m-8-2 3 1 2-3'];
+categories.brunch = ['Brunch','M4 7h12v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4ZM16 8h2a3 3 0 0 1 0 6h-2M7 2v3m5-3v3'];
+categories.playa = ['Playa y piscina','M3 18c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 22c2-2 4-2 6 0s4 2 6 0 4-2 6 0M12 3a3 3 0 1 0 0 .01'];
 categoryEmoji.padel = '🎾';
 categoryEmoji.correr = '🏃';
+Object.assign(categoryEmoji,{futbol:'⚽',gimnasio:'🏋️',bici:'🚲',senderismo:'🥾',yoga:'🧘',juegos:'🎲',compras:'🛍️',museo:'🏛️',baile:'💃',brunch:'🥞',playa:'🏖️'});
 const categoryGroups = {
-  deporte: {label:'Deporte', categories:['padel','correr']},
-  salir: {label:'Comer y salir', categories:['cafe','comida','cena','fiestas']},
-  cultura: {label:'Cultura', categories:['cine','teatro','concierto']},
-  aireLibre: {label:'Aire libre', categories:['ruta','motos']},
+  deporte: {label:'Deporte', categories:['padel','correr','futbol','gimnasio','bici','yoga']},
+  salir: {label:'Comer y salir', categories:['cafe','comida','cena','brunch','fiestas','baile']},
+  cultura: {label:'Cultura', categories:['cine','teatro','concierto','museo','juegos']},
+  aireLibre: {label:'Aire libre', categories:['ruta','senderismo','motos','playa']},
   escapadas: {label:'Escapadas', categories:['viaje']},
-  otros: {label:'Otros planes', categories:['otro']}
+  otros: {label:'Otros planes', categories:['compras','otro']}
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${categories[key][1]}"/></svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
