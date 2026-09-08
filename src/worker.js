@@ -2,8 +2,10 @@ import { text, eventInput, enroll, addComment, publicGroup } from './domain.js';
 import { migrate, isAdmin, canRead, ensureMember, passwordMatches, setPassword } from './access.js';
 import { slugify, namesRequest } from './names.js';
 import { analyticsRequest } from './analytics.js';
+import { rateLimit } from './limits.js';
 export { Names } from './names.js';
 export { Dashboard } from './analytics.js';
+export { Limits } from './limits.js';
 const securityHeaders = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
@@ -13,7 +15,7 @@ const securityHeaders = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'"
 };
-const json = (data, status = 200) => Response.json(data, { status, headers: securityHeaders });
+const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { ...securityHeaders, ...headers } });
 function secure(response) {
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(securityHeaders)) if (!headers.has(name)) headers.set(name, value);
@@ -24,9 +26,13 @@ export default {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return secure(await env.ASSETS.fetch(request));
     if (request.method !== 'GET' && request.headers.get('Origin') !== url.origin) return json({ error: 'Origen no permitido.' }, 403);
+    if (request.method !== 'GET' && !request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) return json({ error: 'El contenido debe ser JSON.' }, 415);
     if (Number(request.headers.get('Content-Length')) > 16384) return json({ error: 'Petición demasiado grande.' }, 413);
+    const clientKey = request.headers.get('CF-Connecting-IP') || 'unknown';
     const named=url.pathname.match(/^\/api\/resolve\/([a-z0-9-]{1,65})$/);
     if(named && request.method==='GET') {
+      const limit = await rateLimit(env, 'resolve', clientKey, 120, 60000);
+      if (!limit.allowed) return json({ error: 'Demasiadas consultas. Inténtalo más tarde.' }, 429, { 'Retry-After': String(limit.retryAfter) });
       const response=await namesRequest(env,'/resolve',{slug:named[1]});
       return json(await response.json(),response.status);
     }
@@ -36,6 +42,10 @@ export default {
     }
     const match = url.pathname.match(/^\/api\/groups\/([a-f0-9-]{36})(?:\/.*)?$/);
     if (!match) return json({ error: 'Ruta no encontrada.' }, 404);
+    if (request.method === 'POST' && url.pathname === `/api/groups/${match[1]}`) {
+      const limit = await rateLimit(env, 'group-create', clientKey, 5, 3600000);
+      if (!limit.allowed) return json({ error: 'Has creado demasiados grupos. Inténtalo más tarde.' }, 429, { 'Retry-After': String(limit.retryAfter) });
+    }
     const headers = new Headers(request.headers);
     headers.set('X-Quedario-Rate-Key', request.headers.get('CF-Connecting-IP') || 'unknown');
     return secure(await env.GROUPS.get(env.GROUPS.idFromName(match[1])).fetch(new Request(request, { headers })));
