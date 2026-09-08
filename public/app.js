@@ -149,6 +149,15 @@ function renderShareButton() {
   const button = $('#share-platform'), platform = platformDetails[group.platform] || platformDetails.whatsapp;
   button.textContent = platform.label; button.className = platform.className;
 }
+function categoryAccent(event) {
+  const category = eventCategory(event);
+  if (['ruta', 'senderismo', 'bici', 'playa', 'viaje'].includes(category)) return 'blue';
+  if (['cine', 'teatro', 'concierto', 'museo', 'juegos', 'baile'].includes(category)) return 'pink';
+  if (['padel', 'correr', 'futbol', 'gimnasio', 'yoga'].includes(category)) return 'orange';
+  if (['cafe', 'comida', 'cena', 'brunch', 'fiestas'].includes(category)) return 'yellow';
+  if (['motos', 'compras'].includes(category)) return 'purple';
+  return 'green';
+}
 function shareGroup() {
   const platform = platformDetails[group.platform] || platformDetails.whatsapp;
   const text = `Únete a ${group.name} en Quedario y apúntate a nuestros planes: ${groupUrl()}`;
@@ -172,7 +181,13 @@ async function loadMyAgenda() {
     } catch { return []; }
   }));
   const events = entries.flat().sort((a, b) => new Date(a.date) - new Date(b.date));
-  content.innerHTML = events.length ? events.map(event => `<a class="card saved-link agenda-link" href="#g=${esc(event.groupId)}"><span class="badge">${icon(eventCategory(event))}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p>${esc(timeLabel(new Date(event.date)))} · ${esc(event.place)}</p><p class="muted">Grupo: ${esc(event.groupName)}</p></a>`).join('') : '<p class="muted">No tienes actividades futuras en los grupos guardados en este navegador.</p>';
+  const days = new Map();
+  for (const event of events) {
+    const key = dayKey(new Date(event.date));
+    if (!days.has(key)) days.set(key, []);
+    days.get(key).push(event);
+  }
+  content.innerHTML = events.length ? [...days.values()].map(day => `<section class="agenda-day personal-agenda-day"><div class="day-heading"><h3>${esc(dayLabel(new Date(day[0].date)))}</h3><span>${day.length === 1 ? '1 actividad' : `${day.length} actividades`}</span></div><div class="grid">${day.map(event => `<a class="card saved-link agenda-link agenda-accent-${categoryAccent(event)}" href="#g=${esc(event.groupId)}"><span class="badge">${icon(eventCategory(event))}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p>${esc(timeLabel(new Date(event.date)))} · ${esc(event.place)}</p><p class="muted">Grupo: ${esc(event.groupName)}</p></a>`).join('')}</div></section>`).join('') : '<p class="muted">No tienes actividades futuras en los grupos guardados en este navegador.</p>';
 }
 async function route() {
   if (location.pathname === '/tablero') {
