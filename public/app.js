@@ -469,7 +469,7 @@ async function loadDashboard(key) {
   $('#dashboard-data').innerHTML = [['groups', data.activeGroups], ['users', data.uniqueMembers], ['dailyUsers', data.averageDailyUsers], ['activities', data.currentActivities], ['signups', data.currentSignups], ['locations', data.locations.length]].map(([key, value]) => dashboardCard(key, value)).join('');
   renderDashboardExplanation();
   renderDashboardInsights(data);
-  $('#dashboard-groups').innerHTML = `<div class="toolbar"><div><h2>Grupos creados</h2><p class="muted">Actualiza las cifras reales para leer el estado actual de todos los grupos.</p></div><button type="button" class="secondary" id="refresh-dashboard">Actualizar cifras reales</button></div>${data.groups?.length ? `<div class="agenda-list">${data.groups.map(dashboardGroup).join('')}</div>` : '<p class="muted">Pulsa “Actualizar cifras reales” para incorporar los grupos existentes.</p>'}`;
+  $('#dashboard-groups').innerHTML = `<div class="toolbar"><div><h2>Grupos creados</h2><p class="muted">Actualiza los datos de todos los grupos guardados en este navegador y de los grupos registrados.</p></div><button type="button" class="secondary" id="refresh-dashboard">Actualizar datos reales</button></div>${data.groups?.length ? `<div class="agenda-list">${data.groups.map(dashboardGroup).join('')}</div>` : '<p class="muted">Pulsa “Actualizar datos reales” para incorporar los grupos existentes.</p>'}`;
   $('#dashboard-locations').innerHTML = `<div class="toolbar"><h2>Fichas de locales</h2><button type="button" class="secondary" id="enrich-places">Completar fichas pendientes</button></div><p class="muted">Consulta hasta 20 locales sin ficha en cada actualización. Las personas apuntadas reflejan inscripciones; podrás confirmar asistencia real cuando incorporemos ese paso.</p>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.google?.name || location.place)}</h3><p>${esc(location.city)}</p></div>${locationCounts(location)}${googlePlaceDetails(location)}<a class="map-link" href="${esc(location.google?.mapsUrl || mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
   renderDashboardMap(data.locations);
 }
@@ -492,7 +492,7 @@ $('#dashboard-groups').onclick = event => {
   if (event.target.id !== 'refresh-dashboard') return;
   action(async () => {
     const key = $('#dashboard-form').elements.key.value;
-    const response = await fetch('/api/admin/dashboard/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key } });
+    const response = await fetch('/api/admin/dashboard/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key }, body: JSON.stringify({ groupIds: Object.keys(saved) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'No se han podido actualizar las cifras.');
     await loadDashboard(key);

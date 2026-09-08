@@ -72,7 +72,10 @@ export default {
     if (url.pathname === '/api/admin/dashboard/refresh' && request.method === 'POST') {
       if (!env.ADMIN_DASHBOARD_KEY || request.headers.get('X-Admin-Key') !== env.ADMIN_DASHBOARD_KEY) return json({ error: 'Acceso privado no autorizado.' }, 401);
       const directory = await namesRequest(env, '/list', {});
-      const { ids = [] } = await directory.json();
+      const { ids: registeredIds = [] } = await directory.json();
+      const body = await request.json().catch(() => ({}));
+      const savedIds = Array.isArray(body.groupIds) ? body.groupIds : [];
+      const ids = [...new Set([...registeredIds, ...savedIds].filter(groupId => typeof groupId === 'string' && /^[a-f0-9-]{36}$/.test(groupId)))].slice(0, 300);
       const results = await Promise.allSettled(ids.map(groupId => env.GROUPS.get(env.GROUPS.idFromName(groupId)).fetch(new Request(`https://groups/api/groups/${groupId}/dashboard-sync`, { method: 'POST', headers: { 'X-Admin-Key': env.ADMIN_DASHBOARD_KEY } }))));
       const synced = results.filter(result => result.status === 'fulfilled' && result.value.ok).length;
       return json({ ok: true, found: ids.length, synced });
@@ -115,7 +118,7 @@ export class Group {
         if (request.method === 'GET' && path.length === 0) {
           if (!group || !canRead(group, token)) return locked();
           await this.ctx.storage.put('group', group);
-          await analyticsRequest(this.env, { type: 'group-synced', groupId: new URL(request.url).pathname.split('/')[3], name: group.name, city: group.city, platform: group.platform, members: group.members.map(member => member.token) });
+          await analyticsRequest(this.env, { type: 'group-snapshot', groupId: new URL(request.url).pathname.split('/')[3], name: group.name, city: group.city, platform: group.platform, members: group.members.map(member => member.token), activities: group.events.length, signups: group.events.reduce((total, event) => total + event.participants.length, 0) });
           return json(publicGroup(group, token));
         }
         const raw = await request.text();
