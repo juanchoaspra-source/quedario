@@ -1,6 +1,6 @@
 # Quedario v1
 
-Aplicación móvil-first en español: un enlace por grupo, calendario de quedadas, categorías con iconos (cena, comida, café, concierto, ruta y otros), aforo, participantes, lista de espera y compartir el grupo por WhatsApp.
+Aplicación móvil-first en español: un enlace por grupo, calendario de quedadas, categorías con iconos (cena, comida, café, concierto, ruta y otros), aforo, participantes, lista de espera y compartir el grupo por WhatsApp o Telegram.
 
 Las quedadas se agrupan por día y se ordenan por hora. Cualquier persona con acceso al grupo dispone de un botón fijo **Crear actividad** en móvil. En rutas, fiestas y viajes se eligen fecha/hora de inicio y de fin; inicialmente ambas son iguales para un plan de un día. Al crear una quedada pueden escribir una dirección y comprobarla en Google Maps, o autorizar la ubicación del dispositivo para guardar un punto exacto; al consultar la actividad, el enlace abre ese lugar en Google Maps. También pueden dejar un comentario inicial, y quienes se apuntan pueden añadir el suyo.
 
@@ -19,6 +19,17 @@ Si aparece un error de permisos de Durable Objects, revisa que la cuenta permita
 
 Después de validar la URL temporal: Workers & Pages → quedario → Settings → Domains & Routes → Add → Custom Domain → `quedario.com`. Añade `www.quedario.com` si lo necesitas. Esto se realiza en Cloudflare, no está aplicado por este repositorio.
 
+## Tablero privado
+
+El tablero está en `https://quedario.com/tablero`. Resume grupos creados o borrados, nuevas entradas, actividades, inscripciones y los lugares agregados por ciudad y establecimiento. Empieza a recoger datos tras el primer despliegue que incluya esta versión; no reconstruye datos anteriores. No almacena nombres de participantes, contraseñas, correos ni contenido de los grupos.
+
+Antes de abrirlo, crea una clave larga y guárdala como secreto de producción en Cloudflare:
+
+```sh
+npx wrangler secret put ADMIN_DASHBOARD_KEY
+```
+
+Introduce esa misma clave en el tablero. Este acceso temporal se sustituirá por el acceso con tu cuenta de Google al activar la siguiente fase de autenticación.
 ## Desarrollo y comprobaciones
 
 Node.js 22 o posterior.

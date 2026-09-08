@@ -1,7 +1,9 @@
 import { text, eventInput, enroll, addComment, publicGroup } from './domain.js';
 import { migrate, isAdmin, canRead, ensureMember, passwordMatches, setPassword } from './access.js';
 import { slugify, namesRequest } from './names.js';
+import { analyticsRequest } from './analytics.js';
 export { Names } from './names.js';
+export { Dashboard } from './analytics.js';
 const securityHeaders = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
@@ -27,6 +29,10 @@ export default {
     if(named && request.method==='GET') {
       const response=await namesRequest(env,'/resolve',{slug:named[1]});
       return json(await response.json(),response.status);
+    }
+    if (url.pathname === '/api/admin/dashboard' && request.method === 'GET') {
+      if (!env.ADMIN_DASHBOARD_KEY || request.headers.get('X-Admin-Key') !== env.ADMIN_DASHBOARD_KEY) return json({ error: 'Acceso privado no autorizado.' }, 401);
+      return secure(await env.ANALYTICS.get(env.ANALYTICS.idFromName('private-dashboard')).fetch(new Request('https://analytics/dashboard')));
     }
     const match = url.pathname.match(/^\/api\/groups\/([a-f0-9-]{36})(?:\/.*)?$/);
     if (!match) return json({ error: 'Ruta no encontrada.' }, 404);
@@ -63,6 +69,7 @@ export class Group {
             const result=await response.json();if(!response.ok)return json(result,response.status);
             group.slug=result.slug;
           }
+          await analyticsRequest(this.env, { type: 'group-created' });
         } else {
           if (!group) return locked();
           if (group.banned.includes(token)) return locked();
@@ -72,6 +79,7 @@ export class Group {
             await this.ctx.storage.deleteAll();
             await this.ctx.storage.put('deleted',true);
             if(group.slug && this.env?.NAMES)await namesRequest(this.env,'/release',{slug:group.slug,id:new URL(request.url).pathname.split('/')[3]});
+            await analyticsRequest(this.env, { type: 'group-deleted' });
             return json({deleted:true});
           } else if (path.length === 1 && path[0] === 'unlock' && request.method === 'POST') {
             if (group.closed && !group.members.some(m => m.token === token)) return locked();
@@ -89,8 +97,10 @@ export class Group {
               }
               await this.ctx.storage.delete(rateKey);
             }
+            const wasMember = group.members.some(item => item.token === token);
             const member = ensureMember(group, token, name);
             member.name = name; member.version = group.accessVersion;
+            if (!wasMember) await analyticsRequest(this.env, { type: 'member-joined' });
           } else if (!canRead(group, token)) return locked();
           else if (path.length === 1 && path[0] === 'settings' && request.method === 'PATCH') {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden modificar los ajustes.' }, 403);
@@ -131,15 +141,18 @@ export class Group {
             const member = group.members.find(m => m.token === token);
             addComment(event, token, member?.name || 'Administrador', body.comment);
             group.events.push(event);
+            await analyticsRequest(this.env, { type: 'activity-created', city: event.city, place: event.place });
           } else {
             const event = group.events.find(e => e.id === path[1]);
             if (!event) return json({ error: 'Quedada no encontrada.' }, 404);
             if (path.length === 3 && path[2] === 'participants' && request.method === 'POST') {
               if (group.closed) throw new Error('El grupo está cerrado y no admite inscripciones.');
+              const wasEnrolled = event.participants.some(participant => participant.token === token);
               enroll(event, token, body.name);
               const member = ensureMember(group, token, body.name);
               member.name = text(body.name, 60);
               addComment(event, token, member.name, body.comment);
+              if (!wasEnrolled) await analyticsRequest(this.env, { type: 'signup', city: event.city, place: event.place });
             }
             else if (path.length === 3 && path[2] === 'participants' && request.method === 'DELETE') event.participants = event.participants.filter(p => p.token !== token);
             else if (path.length === 2 && request.method === 'DELETE') {

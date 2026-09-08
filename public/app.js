@@ -139,6 +139,11 @@ function render() {
 async function load() { group = await api(); remember(); render(); if (group.slug) history.replaceState(null, '', '/' + group.slug); }
 function groupUrl() { return group.slug ? `${location.origin}/${group.slug}` : `${location.origin}/#g=${id}`; }
 async function route() {
+  if (location.pathname === '/tablero') {
+    $('#home').hidden = true; $('#group').hidden = true; $('#locked').hidden = true; $('#members-section').hidden = true; $('#dashboard').hidden = false;
+    return;
+  }
+  $('#dashboard').hidden = true;
   if (location.pathname !== '/') {
     const slug = location.pathname.split('/').filter(Boolean).join('/');
     try { const response = await fetch('/api/resolve/' + encodeURIComponent(slug)); const data = await response.json(); if (!response.ok) throw new Error(data.error); history.replaceState(null, '', '/#g=' + data.id); } catch (error) { notice(error.message); return; }
@@ -257,6 +262,18 @@ $('#past').onchange = render;
 $('#refresh').onclick = () => action(load);
 $('#copy').onclick = () => action(async () => { await navigator.clipboard.writeText(groupUrl()); notice('Enlace del grupo copiado.'); });
 $('#share').onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Únete a ${group.name} en Quedario y apúntate a nuestros planes: ${groupUrl()}`)}`, '_blank', 'noopener,noreferrer');
+$('#share-telegram').onclick = () => window.open(`https://t.me/share/url?${new URLSearchParams({url:groupUrl(),text:`Únete a ${group.name} en Quedario y apúntate a nuestros planes.`})}`, '_blank', 'noopener,noreferrer');
+
+function dashboardCard(label, value) { return `<article class="card"><strong>${esc(String(value))}</strong><p class="muted">${esc(label)}</p></article>`; }
+$('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {
+  const key = event.currentTarget.elements.key.value;
+  const response = await fetch('/api/admin/dashboard', { headers: { 'X-Admin-Key': key } });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'No se pudo abrir el tablero.');
+  $('#dashboard-status').textContent = 'Datos actualizados.';
+  $('#dashboard-data').innerHTML = [['Grupos creados', data.groupsCreated], ['Grupos borrados', data.groupsDeleted], ['Altas en grupos', data.membersJoined], ['Actividades creadas', data.activitiesCreated], ['Inscripciones', data.signups]].map(([label, value]) => dashboardCard(label, value)).join('');
+  $('#dashboard-locations').innerHTML = `<h2>Lugares con más actividad</h2>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card"><h3>${esc(location.place)}</h3><p>${esc(location.city)}</p><p class="muted">${location.activities} actividades · ${location.signups} inscripciones</p></article>`).join('')}</div>` : '<p class="muted">Aún no hay lugares registrados.</p>'}`;
+}); };
 
 $('#settings').onclick = () => { const form = $('#settings-form'); form.elements.name.value = group.name; form.elements.password.value = ''; form.elements.passwordConfirm.value = ''; form.elements.passwordConfirm.setCustomValidity(''); form.elements.passwordConfirm.required = false; $('#settings-dialog').showModal(); };
 $('#settings-close').onclick = () => $('#settings-dialog').close();
