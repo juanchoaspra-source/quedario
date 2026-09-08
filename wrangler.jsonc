@@ -3,6 +3,7 @@
   "name": "quedario",
   "main": "src/worker.js",
   "compatibility_date": "2026-09-07",
+  "vars": { "GOOGLE_CLIENT_ID": "1075197601841-n2p14s2r9vm420k9m7lvr9k5tamva2os.apps.googleusercontent.com" },
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"], "not_found_handling": "single-page-application" },
   "durable_objects": { "bindings": [{ "name": "GROUPS", "class_name": "Group" }, { "name": "NAMES", "class_name": "Names" }, { "name": "ANALYTICS", "class_name": "Dashboard" }, { "name": "LIMITS", "class_name": "Limits" }, { "name": "AUTH", "class_name": "Auth" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Group"] }, { "tag": "v2", "new_sqlite_classes": ["Names"] }, { "tag": "v3", "new_sqlite_classes": ["Dashboard"] }, { "tag": "v4", "new_sqlite_classes": ["Limits"] }, { "tag": "v5", "new_sqlite_classes": ["Auth"] }]
