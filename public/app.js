@@ -174,6 +174,11 @@ async function promoteQuedario() {
   if (navigator.share) { await navigator.share({title:'Quedario', text, url}); return; }
   await navigator.clipboard.writeText(`${text} ${url}`); notice('Mensaje y enlace de Quedario copiados.');
 }
+function agendaCapacity(event) {
+  const total = event.participants?.length || 0;
+  const waiting = Math.max(0, total - event.capacity);
+  return `${Math.min(total, event.capacity)} / ${event.capacity} plazas${waiting ? ` · ${waiting} en espera` : ''}`;
+}
 async function loadMyAgenda() {
   const panel = $('#my-agenda'), content = $('#my-agenda-items');
   panel.hidden = false; content.textContent = 'Preparando tu agenda…';
@@ -192,7 +197,7 @@ async function loadMyAgenda() {
     if (!days.has(key)) days.set(key, []);
     days.get(key).push(event);
   }
-  content.innerHTML = events.length ? [...days.values()].map(day => `<section class="agenda-day personal-agenda-day"><div class="day-heading"><h3>${esc(dayLabel(new Date(day[0].date)))}</h3><span>${day.length === 1 ? '1 actividad' : `${day.length} actividades`}</span></div><div class="grid">${day.map(event => `<a class="card saved-link agenda-link agenda-accent-${categoryAccent(event)}" href="#g=${esc(event.groupId)}"><span class="badge">${icon(eventCategory(event))}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p>${esc(timeLabel(new Date(event.date)))} · ${esc(event.place)}</p><p class="muted">Grupo: ${esc(event.groupName)}</p></a>`).join('')}</div></section>`).join('') : '<p class="muted">No tienes actividades futuras en los grupos guardados en este navegador.</p>';
+  content.innerHTML = events.length ? [...days.values()].map(day => `<section class="agenda-day personal-agenda-day"><div class="day-heading"><h3>${esc(dayLabel(new Date(day[0].date)))}</h3><span>${day.length === 1 ? '1 actividad' : `${day.length} actividades`}</span></div><div class="grid">${day.map(event => `<a class="card saved-link agenda-link agenda-accent-${categoryAccent(event)}" href="#g=${esc(event.groupId)}"><span class="badge">${icon(eventCategory(event))}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p>${esc(timeLabel(new Date(event.date)))} · ${esc(event.place)}</p><p class="muted">${esc(agendaCapacity(event))}</p><p class="muted">Grupo: ${esc(event.groupName)}</p></a>`).join('')}</div></section>`).join('') : '<p class="muted">No tienes actividades futuras en los grupos guardados en este navegador.</p>';
 }
 async function route() {
   if (location.pathname === '/tablero') {
