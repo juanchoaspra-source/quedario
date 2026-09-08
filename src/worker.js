@@ -100,6 +100,7 @@ export class Group {
         if (request.method === 'GET' && path.length === 0) {
           if (!group || !canRead(group, token)) return locked();
           await this.ctx.storage.put('group', group);
+          await analyticsRequest(this.env, { type: 'group-synced', groupId: new URL(request.url).pathname.split('/')[3], name: group.name, city: group.city, platform: group.platform, members: group.members.map(member => member.token) });
           return json(publicGroup(group, token));
         }
         const raw = await request.text();
@@ -107,14 +108,14 @@ export class Group {
         const body = raw ? JSON.parse(raw) : {};
         if (request.method === 'POST' && path.length === 0) {
           if (group) return locked();
-          group = migrate({ name: text(body.name, 80), platform: groupPlatform(body.platform), owner: token, events: [] });
+          group = migrate({ name: text(body.name, 80), city: typeof body.city === 'string' && body.city.trim() ? text(body.city, 80) : '', platform: groupPlatform(body.platform), owner: token, events: [] });
           if(body.password) await setPassword(group, body.password);
           if(this.env?.NAMES){
             const response=await namesRequest(this.env,'/claim',{slug:slugify(body.slug || group.name),id:new URL(request.url).pathname.split('/')[3]});
             const result=await response.json();if(!response.ok)return json(result,response.status);
             group.slug=result.slug;
           }
-          await analyticsRequest(this.env, { type: 'group-created', groupId: new URL(request.url).pathname.split('/')[3], memberId: token });
+          await analyticsRequest(this.env, { type: 'group-created', groupId: new URL(request.url).pathname.split('/')[3], memberId: token, name: group.name, city: group.city, platform: group.platform });
         } else {
           if (!group) return locked();
           if (group.banned.includes(token)) return locked();
@@ -150,8 +151,10 @@ export class Group {
           else if (path.length === 1 && path[0] === 'settings' && request.method === 'PATCH') {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden modificar los ajustes.' }, 403);
             group.name = text(body.name, 80);
+            group.city = typeof body.city === 'string' && body.city.trim() ? text(body.city, 80) : '';
             if (body.password) await setPassword(group, body.password);
             else if(body.password===''){delete group.password;group.accessVersion++;}
+            await analyticsRequest(this.env, { type: 'group-updated', groupId: new URL(request.url).pathname.split('/')[3], name: group.name, city: group.city, platform: group.platform });
           } else if (path.length === 1 && path[0] === 'status' && request.method === 'PATCH') {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden cerrar o reabrir el grupo.' }, 403);
             if (typeof body.closed !== 'boolean') throw new Error('Estado no válido.');
@@ -165,6 +168,7 @@ export class Group {
             group.admins = group.admins.filter(t => t !== member.token);
             group.members = group.members.filter(m => m.id !== member.id);
             for (const event of group.events) event.participants = event.participants.filter(p => p.token !== member.token);
+            await analyticsRequest(this.env, { type: 'member-left', groupId: new URL(request.url).pathname.split('/')[3], memberId: member.token });
             await this.ctx.storage.put('group', group);
             if (member.token === token) return locked();
           } else if (path.length === 1 && path[0] === 'admins' && request.method === 'PATCH') {

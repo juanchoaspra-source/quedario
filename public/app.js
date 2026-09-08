@@ -420,12 +420,17 @@ function locationCounts(location) {
   const average = location.activities ? (location.signups / location.activities).toFixed(1).replace('.0', '') : '0';
   return `<div class="location-counts"><strong>${location.activities}</strong><span>actividades</span><strong>${location.signups}</strong><span>personas apuntadas</span><strong>${average}</strong><span>media por actividad</span><strong>${monthly.activities}</strong><span>planes este mes</span><strong>${monthly.signups}</strong><span>personas este mes</span></div>`;
 }
+function dashboardGroup(group) {
+  const channels = { whatsapp:'WhatsApp', telegram:'Telegram', facebook:'Facebook', otro:'Otro canal' };
+  return `<article class="card location-card"><div><h3>${esc(group.name)}</h3><p>${esc(group.city || 'Ciudad no indicada')}</p><p class="muted">Creado para ${esc(channels[group.platform] || 'WhatsApp')}</p></div><div class="location-counts"><strong>${group.members}</strong><span>${group.members === 1 ? 'persona inscrita' : 'personas inscritas'}</span></div></article>`;
+}
 async function loadDashboard(key) {
   const response = await fetch('/api/admin/dashboard', { headers: { 'X-Admin-Key': key } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'No se pudo abrir el tablero.');
   $('#dashboard-status').textContent = 'Datos actualizados.';
   $('#dashboard-data').innerHTML = [['Grupos activos', data.activeGroups], ['Personas únicas', data.uniqueMembers], ['Actividades creadas', data.activitiesCreated], ['Inscripciones acumuladas', data.signups], ['Locales detectados', data.locations.length]].map(([label, value]) => dashboardCard(label, value)).join('');
+  $('#dashboard-groups').innerHTML = `<h2>Grupos creados</h2>${data.groups?.length ? `<div class="agenda-list">${data.groups.map(dashboardGroup).join('')}</div>` : '<p class="muted">Los grupos aparecerán aquí a medida que se creen o se actualicen sus ajustes.</p>'}`;
   $('#dashboard-locations').innerHTML = `<div class="toolbar"><h2>Fichas de locales</h2><button type="button" class="secondary" id="enrich-places">Completar fichas pendientes</button></div><p class="muted">Consulta hasta 20 locales sin ficha en cada actualización. Las personas apuntadas reflejan inscripciones; podrás confirmar asistencia real cuando incorporemos ese paso.</p>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.google?.name || location.place)}</h3><p>${esc(location.city)}</p></div>${locationCounts(location)}${googlePlaceDetails(location)}<a class="map-link" href="${esc(location.google?.mapsUrl || mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
   renderDashboardMap(data.locations);
 }
@@ -444,7 +449,7 @@ $('#dashboard-locations').onclick = event => {
   });
 };
 
-$('#settings').onclick = () => { const form = $('#settings-form'); form.elements.name.value = group.name; form.elements.password.value = ''; form.elements.passwordConfirm.value = ''; form.elements.passwordConfirm.setCustomValidity(''); form.elements.passwordConfirm.required = false; $('#settings-dialog').showModal(); };
+$('#settings').onclick = () => { const form = $('#settings-form'); form.elements.name.value = group.name; form.elements.city.value = group.city || ''; form.elements.password.value = ''; form.elements.passwordConfirm.value = ''; form.elements.passwordConfirm.setCustomValidity(''); form.elements.passwordConfirm.required = false; $('#settings-dialog').showModal(); };
 $('#settings-close').onclick = () => $('#settings-dialog').close();
 $('#settings-form').onsubmit = event => { event.preventDefault(); if (!validatePasswords(event.target)) return; if (group.protected && !event.target.elements.password.value && !confirm('¿Quitar la contraseña? Cualquiera con el enlace podrá ver el grupo.')) return; action(async () => { group = await api('/settings', 'PATCH', Object.fromEntries(new FormData(event.target))); remember(); render(); $('#settings-dialog').close(); notice('Ajustes guardados.'); }); };
 $('#unlock-form').onsubmit = event => {

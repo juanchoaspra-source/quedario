@@ -1,5 +1,6 @@
 const empty = () => ({ groupsCreated: 0, groupsDeleted: 0, membersJoined: 0, activitiesCreated: 0, signups: 0, groups: {}, locations: {}, aliases: {} });
 const clean = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
+const groupMetadata = event => ({ name: clean(event.name, 80) || 'Grupo sin nombre', city: clean(event.city, 80), platform: ['whatsapp', 'telegram', 'facebook', 'otro'].includes(event.platform) ? event.platform : 'whatsapp' });
 const locationKey = (city, place) => `${city.toLocaleLowerCase('es')}:${place.toLocaleLowerCase('es')}`;
 const monthKey = value => {
   const date = new Date(value || Date.now());
@@ -70,9 +71,10 @@ export class Dashboard {
     if (request.method === 'GET') {
       const stats = await this.ctx.storage.get('stats') || empty();
       const locations = Object.values(stats.locations).sort((a, b) => b.activities - a.activities || b.signups - a.signups).slice(0, 100);
-      const activeGroups = Object.keys(stats.groups || {}).length || Math.max(0, stats.groupsCreated - stats.groupsDeleted);
+      const groups = Object.entries(stats.groups || {}).map(([id, group]) => ({ id, ...groupMetadata(group), members: (group.members || []).length, createdAt: group.createdAt || '' })).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.name.localeCompare(b.name, 'es'));
+      const activeGroups = groups.length || Math.max(0, stats.groupsCreated - stats.groupsDeleted);
       const uniqueMembers = new Set(Object.values(stats.groups || {}).flatMap(group => group.members || [])).size;
-      return Response.json({ ...stats, activeGroups, uniqueMembers, locations });
+      return Response.json({ ...stats, activeGroups, uniqueMembers, locations, groups });
     }
     if (request.method !== 'POST') return Response.json({ error: 'Método no permitido.' }, { status: 405 });
     if (url.pathname === '/enrich') {
@@ -88,7 +90,14 @@ export class Dashboard {
     stats.aliases ??= {};
     if (event.type === 'group-created') {
       stats.groupsCreated++;
-      if (event.groupId) stats.groups[event.groupId] ??= { members: [] };
+      if (event.groupId) stats.groups[event.groupId] ??= { members: [], ...groupMetadata(event), createdAt: new Date().toISOString() };
+    }
+    if ((event.type === 'group-updated' || event.type === 'group-synced') && event.groupId) {
+      const group = stats.groups[event.groupId] ??= { members: [], createdAt: '' };
+      Object.assign(group, groupMetadata(event));
+      if (event.type === 'group-synced' && Array.isArray(event.members)) {
+        group.members = (await Promise.all(event.members.slice(0, 2000).map(memberFingerprint))).filter(Boolean);
+      }
     }
     if (event.type === 'group-deleted') {
       stats.groupsDeleted++;
@@ -99,6 +108,10 @@ export class Dashboard {
       const group = stats.groups[event.groupId] ??= { members: [] };
       const member = await memberFingerprint(event.memberId);
       if (member && !group.members.includes(member)) group.members.push(member);
+    }
+    if (event.type === 'member-left' && event.groupId && event.memberId && stats.groups[event.groupId]) {
+      const member = await memberFingerprint(event.memberId);
+      stats.groups[event.groupId].members = (stats.groups[event.groupId].members || []).filter(item => item !== member);
     }
     if (event.type === 'activity-created') {
       stats.activitiesCreated++;

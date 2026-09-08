@@ -6,7 +6,7 @@ test('agrega actividad e inscripciones por ciudad y lugar sin datos personales',
   const data = new Map();
   const dashboard = new Dashboard({ storage: { get: async key => structuredClone(data.get(key)), put: async (key, value) => data.set(key, structuredClone(value)) } });
   const record = async body => dashboard.fetch(new Request('https://analytics/record', { method: 'POST', body: JSON.stringify(body) }));
-  await record({ type: 'group-created', groupId: 'grupo-1', memberId: 'persona-1' });
+  await record({ type: 'group-created', groupId: 'grupo-1', memberId: 'persona-1', name: 'Los del viernes', city: 'Zaragoza', platform: 'telegram' });
   await record({ type: 'member-joined', groupId: 'grupo-1', memberId: 'persona-2' });
   await record({ type: 'activity-created', city: 'Zaragoza', place: 'Café Central', date: '2026-09-12T13:30:00.000Z', location: { latitude: 41.6488, longitude: -0.8891 } });
   await record({ type: 'signup', city: 'Zaragoza', place: 'Café Central', date: '2026-09-12T13:30:00.000Z' });
@@ -14,12 +14,26 @@ test('agrega actividad e inscripciones por ciudad y lugar sin datos personales',
   assert.equal(report.groupsCreated, 1);
   assert.equal(report.activeGroups, 1);
   assert.equal(report.uniqueMembers, 2);
+  assert.deepEqual(report.groups[0], { id: 'grupo-1', name: 'Los del viernes', city: 'Zaragoza', platform: 'telegram', members: 2, createdAt: report.groups[0].createdAt });
   assert.equal(report.locations[0].city, 'Zaragoza');
   assert.equal(report.locations[0].place, 'Café Central');
   assert.equal(report.locations[0].activities, 1);
   assert.equal(report.locations[0].signups, 1);
   assert.deepEqual(report.locations[0].months['2026-09'], { activities: 1, signups: 1 });
   assert.deepEqual(report.locations[0].location, { latitude: 41.6488, longitude: -0.8891 });
+});
+
+test('sincroniza el número actual de miembros y permite actualizar la ciudad del grupo', async () => {
+  const data = new Map();
+  const dashboard = new Dashboard({ storage: { get: async key => structuredClone(data.get(key)), put: async (key, value) => data.set(key, structuredClone(value)) } });
+  const record = body => dashboard.fetch(new Request('https://analytics/record', { method: 'POST', body: JSON.stringify(body) }));
+  await record({ type: 'group-synced', groupId: 'grupo-2', name: 'Amigas', city: 'Huesca', platform: 'whatsapp', members: ['uno', 'dos', 'tres'] });
+  await record({ type: 'member-left', groupId: 'grupo-2', memberId: 'dos' });
+  await record({ type: 'group-updated', groupId: 'grupo-2', name: 'Amigas de Huesca', city: 'Jaca', platform: 'whatsapp' });
+  const report = await (await dashboard.fetch(new Request('https://analytics/dashboard'))).json();
+  assert.equal(report.groups[0].name, 'Amigas de Huesca');
+  assert.equal(report.groups[0].city, 'Jaca');
+  assert.equal(report.groups[0].members, 2);
 });
 
 test('completa una ficha nueva con Google Places y la conserva en el tablero', async () => {
