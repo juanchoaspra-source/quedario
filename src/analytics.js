@@ -1,6 +1,11 @@
 const empty = () => ({ groupsCreated: 0, groupsDeleted: 0, membersJoined: 0, activitiesCreated: 0, signups: 0, groups: {}, locations: {} });
 const clean = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const locationKey = (city, place) => `${city.toLocaleLowerCase('es')}:${place.toLocaleLowerCase('es')}`;
+const monthKey = value => {
+  const date = new Date(value || Date.now());
+  return Number.isNaN(date.valueOf()) ? new Date().toISOString().slice(0, 7) : date.toISOString().slice(0, 7);
+};
+const monthStats = (location, month) => location.months?.[month] ?? { activities: 0, signups: 0 };
 const venueCanBeLocated = location => location?.place && location.place !== 'Lugar no indicado' && location.place.length > 2;
 async function enrichLocation(location, apiKey) {
   if (!apiKey || !venueCanBeLocated(location) || location.google || location.lookupAt) return false;
@@ -86,8 +91,12 @@ export class Dashboard {
       stats.activitiesCreated++;
       const city = clean(event.city, 80) || 'Ciudad no indicada', place = clean(event.place, 200) || 'Lugar no indicado';
       const key = locationKey(city, place);
-      const location = stats.locations[key] || { city, place, activities: 0, signups: 0, lastActivityAt: '' };
+      const location = stats.locations[key] || { city, place, activities: 0, signups: 0, months: {}, lastActivityAt: '' };
+      location.months ??= {};
+      const month = monthKey(event.date);
+      location.months[month] = monthStats(location, month);
       location.activities++; location.lastActivityAt = new Date().toISOString(); stats.locations[key] = location;
+      location.months[month].activities++;
       if (event.location && Number.isFinite(Number(event.location.latitude)) && Number.isFinite(Number(event.location.longitude))) location.location = { latitude: Number(event.location.latitude), longitude: Number(event.location.longitude) };
       await enrichLocation(location, this.env?.GOOGLE_PLACES_API_KEY);
     }
@@ -95,7 +104,13 @@ export class Dashboard {
       stats.signups++;
       const city = clean(event.city, 80) || 'Ciudad no indicada', place = clean(event.place, 200) || 'Lugar no indicado';
       const location = stats.locations[locationKey(city, place)];
-      if (location) location.signups++;
+      if (location) {
+        location.months ??= {};
+        const month = monthKey(event.date);
+        location.months[month] = monthStats(location, month);
+        location.signups++;
+        location.months[month].signups++;
+      }
     }
     await this.ctx.storage.put('stats', stats);
     return Response.json({ ok: true });

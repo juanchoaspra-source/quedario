@@ -398,13 +398,19 @@ function googlePlaceDetails(location) {
   const contacts = [google.address, google.phone].filter(Boolean).map(esc).join(' · ');
   return `<p class="muted">Ficha verificada por Google Places${contacts ? ` · ${contacts}` : ''}</p>${google.website ? `<a class="map-link" href="${esc(google.website)}" target="_blank" rel="noopener noreferrer">Visitar web del local ↗</a>` : ''}`;
 }
+function locationCounts(location) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthly = location.months?.[currentMonth] || { activities: 0, signups: 0 };
+  const average = location.activities ? (location.signups / location.activities).toFixed(1).replace('.0', '') : '0';
+  return `<div class="location-counts"><strong>${location.activities}</strong><span>actividades</span><strong>${location.signups}</strong><span>personas apuntadas</span><strong>${average}</strong><span>media por actividad</span><strong>${monthly.activities}</strong><span>planes este mes</span><strong>${monthly.signups}</strong><span>personas este mes</span></div>`;
+}
 async function loadDashboard(key) {
   const response = await fetch('/api/admin/dashboard', { headers: { 'X-Admin-Key': key } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'No se pudo abrir el tablero.');
   $('#dashboard-status').textContent = 'Datos actualizados.';
   $('#dashboard-data').innerHTML = [['Grupos activos', data.activeGroups], ['Personas únicas', data.uniqueMembers], ['Actividades creadas', data.activitiesCreated], ['Inscripciones acumuladas', data.signups], ['Locales detectados', data.locations.length]].map(([label, value]) => dashboardCard(label, value)).join('');
-  $('#dashboard-locations').innerHTML = `<div class="toolbar"><h2>Fichas de locales</h2><button type="button" class="secondary" id="enrich-places">Completar fichas pendientes</button></div><p class="muted">Consulta hasta 20 locales sin ficha en cada actualización.</p>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.google?.name || location.place)}</h3><p>${esc(location.city)}</p></div><div class="location-counts"><strong>${location.activities}</strong><span>actividades</span><strong>${location.signups}</strong><span>inscripciones</span></div>${googlePlaceDetails(location)}<a class="map-link" href="${esc(location.google?.mapsUrl || mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
+  $('#dashboard-locations').innerHTML = `<div class="toolbar"><h2>Fichas de locales</h2><button type="button" class="secondary" id="enrich-places">Completar fichas pendientes</button></div><p class="muted">Consulta hasta 20 locales sin ficha en cada actualización. Las personas apuntadas reflejan inscripciones; podrás confirmar asistencia real cuando incorporemos ese paso.</p>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.google?.name || location.place)}</h3><p>${esc(location.city)}</p></div>${locationCounts(location)}${googlePlaceDetails(location)}<a class="map-link" href="${esc(location.google?.mapsUrl || mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
   renderDashboardMap(data.locations);
 }
 $('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {
