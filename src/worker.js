@@ -65,6 +65,10 @@ export default {
       if (!env.ADMIN_DASHBOARD_KEY || request.headers.get('X-Admin-Key') !== env.ADMIN_DASHBOARD_KEY) return json({ error: 'Acceso privado no autorizado.' }, 401);
       return secure(await env.ANALYTICS.get(env.ANALYTICS.idFromName('private-dashboard')).fetch(new Request('https://analytics/dashboard')));
     }
+    if (url.pathname === '/api/admin/dashboard/enrich' && request.method === 'POST') {
+      if (!env.ADMIN_DASHBOARD_KEY || request.headers.get('X-Admin-Key') !== env.ADMIN_DASHBOARD_KEY) return json({ error: 'Acceso privado no autorizado.' }, 401);
+      return secure(await env.ANALYTICS.get(env.ANALYTICS.idFromName('private-dashboard')).fetch(new Request('https://analytics/enrich', { method: 'POST' })));
+    }
     const match = url.pathname.match(/^\/api\/groups\/([a-f0-9-]{36})(?:\/.*)?$/);
     if (!match) return json({ error: 'Ruta no encontrada.' }, 404);
     if (request.method === 'POST' && url.pathname === `/api/groups/${match[1]}`) {

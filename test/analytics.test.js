@@ -20,3 +20,17 @@ test('agrega actividad e inscripciones por ciudad y lugar sin datos personales',
   assert.equal(report.locations[0].signups, 1);
   assert.deepEqual(report.locations[0].location, { latitude: 41.6488, longitude: -0.8891 });
 });
+
+test('completa una ficha nueva con Google Places y la conserva en el tablero', async () => {
+  const data = new Map();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ places: [{ id: 'abc', displayName: { text: 'Café Central' }, formattedAddress: 'Calle Mayor 1, Zaragoza', location: { latitude: 41.65, longitude: -0.88 }, googleMapsUri: 'https://maps.google.com/?q=cafe', internationalPhoneNumber: '+34 600 000 000', websiteUri: 'https://cafe.example', types: ['cafe'] }] }), { status: 200 });
+  try {
+    const dashboard = new Dashboard({ storage: { get: async key => structuredClone(data.get(key)), put: async (key, value) => data.set(key, structuredClone(value)) } }, { GOOGLE_PLACES_API_KEY: 'secret' });
+    await dashboard.fetch(new Request('https://analytics/record', { method: 'POST', body: JSON.stringify({ type: 'activity-created', city: 'Zaragoza', place: 'Café Central' }) }));
+    const report = await (await dashboard.fetch(new Request('https://analytics/dashboard'))).json();
+    assert.equal(report.locations[0].google.address, 'Calle Mayor 1, Zaragoza');
+    assert.equal(report.locations[0].google.phone, '+34 600 000 000');
+    assert.deepEqual(report.locations[0].location, { latitude: 41.65, longitude: -0.88 });
+  } finally { globalThis.fetch = originalFetch; }
+});

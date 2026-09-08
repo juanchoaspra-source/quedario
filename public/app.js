@@ -392,16 +392,35 @@ function renderDashboardMap(locations) {
   }
   dashboardMap.fitBounds(points, {padding:[28,28], maxZoom:14});
 }
-$('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {
-  const key = event.currentTarget.elements.key.value;
+function googlePlaceDetails(location) {
+  const google = location.google;
+  if (!google) return `<p class="muted">${location.location ? 'Ubicación exacta disponible.' : 'Pendiente de localizar con Google Places.'}</p>`;
+  const contacts = [google.address, google.phone].filter(Boolean).map(esc).join(' · ');
+  return `<p class="muted">Ficha verificada por Google Places${contacts ? ` · ${contacts}` : ''}</p>${google.website ? `<a class="map-link" href="${esc(google.website)}" target="_blank" rel="noopener noreferrer">Visitar web del local ↗</a>` : ''}`;
+}
+async function loadDashboard(key) {
   const response = await fetch('/api/admin/dashboard', { headers: { 'X-Admin-Key': key } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'No se pudo abrir el tablero.');
   $('#dashboard-status').textContent = 'Datos actualizados.';
   $('#dashboard-data').innerHTML = [['Grupos activos', data.activeGroups], ['Personas únicas', data.uniqueMembers], ['Actividades creadas', data.activitiesCreated], ['Inscripciones acumuladas', data.signups], ['Locales detectados', data.locations.length]].map(([label, value]) => dashboardCard(label, value)).join('');
-  $('#dashboard-locations').innerHTML = `<h2>Fichas de locales</h2>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.place)}</h3><p>${esc(location.city)}</p></div><div class="location-counts"><strong>${location.activities}</strong><span>actividades</span><strong>${location.signups}</strong><span>inscripciones</span></div><p class="muted">${location.location ? 'Ubicación exacta disponible.' : 'Pendiente de localizar con una dirección o ubicación exacta.'}</p><a class="map-link" href="${esc(mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
+  $('#dashboard-locations').innerHTML = `<div class="toolbar"><h2>Fichas de locales</h2><button type="button" class="secondary" id="enrich-places">Completar fichas pendientes</button></div><p class="muted">Consulta hasta 20 locales sin ficha en cada actualización.</p>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.google?.name || location.place)}</h3><p>${esc(location.city)}</p></div><div class="location-counts"><strong>${location.activities}</strong><span>actividades</span><strong>${location.signups}</strong><span>inscripciones</span></div>${googlePlaceDetails(location)}<a class="map-link" href="${esc(location.google?.mapsUrl || mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
   renderDashboardMap(data.locations);
+}
+$('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {
+  await loadDashboard(event.currentTarget.elements.key.value);
 }); };
+$('#dashboard-locations').onclick = event => {
+  if (event.target.id !== 'enrich-places') return;
+  action(async () => {
+    const key = $('#dashboard-form').elements.key.value;
+    const response = await fetch('/api/admin/dashboard/enrich', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key } });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'No se han podido completar las fichas.');
+    await loadDashboard(key);
+    $('#dashboard-status').textContent = result.checked ? `${result.completed} fichas completadas de ${result.checked} consultadas.` : 'No hay fichas pendientes para completar.';
+  });
+};
 
 $('#settings').onclick = () => { const form = $('#settings-form'); form.elements.name.value = group.name; form.elements.password.value = ''; form.elements.passwordConfirm.value = ''; form.elements.passwordConfirm.setCustomValidity(''); form.elements.passwordConfirm.required = false; $('#settings-dialog').showModal(); };
 $('#settings-close').onclick = () => $('#settings-dialog').close();
