@@ -3,17 +3,19 @@ import { migrate, isAdmin, canRead, ensureMember, passwordMatches, setPassword }
 import { slugify, namesRequest } from './names.js';
 import { analyticsRequest } from './analytics.js';
 import { rateLimit } from './limits.js';
+import { authRequest } from './auth.js';
 export { Names } from './names.js';
 export { Dashboard } from './analytics.js';
 export { Limits } from './limits.js';
+export { Auth } from './auth.js';
 const securityHeaders = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'geolocation=(self), camera=(), microphone=()',
-  'Cross-Origin-Opener-Policy': 'same-origin',
-  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'"
+  'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/"
 };
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { ...securityHeaders, ...headers } });
 function secure(response) {
@@ -29,6 +31,23 @@ export default {
     if (request.method !== 'GET' && !request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) return json({ error: 'El contenido debe ser JSON.' }, 415);
     if (Number(request.headers.get('Content-Length')) > 16384) return json({ error: 'Petición demasiado grande.' }, 413);
     const clientKey = request.headers.get('CF-Connecting-IP') || 'unknown';
+    if (url.pathname === '/api/auth/config' && request.method === 'GET') return json({ googleClientId: env.GOOGLE_CLIENT_ID || '' });
+    const session = request.headers.get('Cookie')?.match(/(?:^|;\s*)quedario_session=([^;]+)/)?.[1];
+    if (url.pathname === '/api/auth/me' && request.method === 'GET') return json(await (await authRequest(env, '/resolve', { session })).json());
+    if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
+      const result = await (await authRequest(env, '/logout', { session })).json();
+      return json(result, 200, { 'Set-Cookie': 'quedario_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax' });
+    }
+    if (url.pathname === '/api/auth/google' && request.method === 'POST') {
+      if (!env.GOOGLE_CLIENT_ID) return json({ error: 'El acceso con Google aún no está configurado.' }, 503);
+      const { credential } = await request.json();
+      if (typeof credential !== 'string' || credential.length > 4096) return json({ error: 'Credencial de Google no válida.' }, 400);
+      const verified = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+      const profile = await verified.json();
+      if (!verified.ok || profile.aud !== env.GOOGLE_CLIENT_ID || profile.email_verified !== 'true' || !profile.sub) return json({ error: 'Google no ha podido verificar esta cuenta.' }, 401);
+      const result = await (await authRequest(env, '/login', { subject: profile.sub, email: profile.email, name: profile.name || profile.email, picture: profile.picture || '' })).json();
+      return json({ account: result.account }, 200, { 'Set-Cookie': `quedario_session=${result.raw}; Path=/; Max-Age=2592000; Secure; HttpOnly; SameSite=Lax` });
+    }
     const named=url.pathname.match(/^\/api\/resolve\/([a-z0-9-]{1,65})$/);
     if(named && request.method==='GET') {
       const limit = await rateLimit(env, 'resolve', clientKey, 120, 60000);
@@ -46,7 +65,9 @@ export default {
       const limit = await rateLimit(env, 'group-create', clientKey, 5, 3600000);
       if (!limit.allowed) return json({ error: 'Has creado demasiados grupos. Inténtalo más tarde.' }, 429, { 'Retry-After': String(limit.retryAfter) });
     }
+    const auth = session ? await (await authRequest(env, '/resolve', { session })).json() : null;
     const headers = new Headers(request.headers);
+    if (auth?.account?.id) headers.set('X-Participant', auth.account.id);
     headers.set('X-Quedario-Rate-Key', request.headers.get('CF-Connecting-IP') || 'unknown');
     return secure(await env.GROUPS.get(env.GROUPS.idFromName(match[1])).fetch(new Request(request, { headers })));
   }

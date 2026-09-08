@@ -220,7 +220,7 @@ $('#event-form select').onchange = updateDetail;
 $('#event-form').elements.date.addEventListener('input', syncEndDate);
 $('#event-form').elements.endDate.addEventListener('input', event => { event.target.dataset.followsStart = event.target.value === $('#event-form').elements.date.value ? 'true' : 'false'; });
 $('#event-form').elements.place.addEventListener('input', updatePlacePreview);
-document.querySelectorAll('[data-open-event]').forEach(button => button.onclick = openEventDialog);
+document.querySelectorAll('[data-open-event]').forEach(button => button.onclick = () => openEventDialog());
 $('#close').onclick = () => $('#event-dialog').close();
 $('#join-close').onclick = () => $('#join-dialog').close();
 $('#use-location').onclick = () => action(async () => {
@@ -317,5 +317,30 @@ document.querySelectorAll('input[type="password"]').forEach((input, index) => {
   const update = () => { const visible = input.type === 'text'; button.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Mostrar contraseña'); button.title = visible ? 'Ocultar contraseña' : 'Mostrar contraseña'; button.setAttribute('aria-pressed', String(visible)); };
   button.onclick = () => { input.type = input.type === 'password' ? 'text' : 'password'; update(); }; wrap.append(button); update(); input.form.addEventListener('reset', () => { input.type = 'password'; update(); });
 });
+let account;
+function renderAccount() {
+  const button = $('#account');
+  if (!account) { button.textContent = '◯'; button.setAttribute('aria-label', 'Entrar con Google'); $('#account-content').innerHTML = '<p class="muted">Inicia sesión con Google para mantener tu identidad entre dispositivos.</p><div id="google-button"></div>'; return; }
+  button.innerHTML = account.picture ? `<img src="${esc(account.picture)}" alt="">` : esc(account.name.slice(0, 1).toUpperCase());
+  $('#account-content').innerHTML = `<p><strong>${esc(account.name)}</strong><br><span class="muted">${esc(account.email)}</span></p><button id="logout" class="secondary">Cerrar sesión</button>`;
+  $('#logout').onclick = () => action(async () => { await fetch('/api/auth/logout', { method: 'POST', headers: {'Content-Type':'application/json'} }); account = null; renderAccount(); $('#account-dialog').close(); });
+}
+async function googleCredential(response) {
+  const result = await fetch('/api/auth/google', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ credential: response.credential }) });
+  const data = await result.json(); if (!result.ok) throw new Error(data.error || 'No se pudo iniciar sesión.');
+  account = data.account; renderAccount(); $('#account-dialog').close(); notice('Sesión iniciada. Esta cuenta se reconocerá en tus otros dispositivos.');
+}
+async function setupGoogle() {
+  const config = await (await fetch('/api/auth/config')).json();
+  const me = await (await fetch('/api/auth/me')).json(); account = me.account; renderAccount();
+  if (!config.googleClientId) return;
+  const script = document.createElement('script'); script.src = 'https://accounts.google.com/gsi/client'; script.async = true;
+  script.onload = () => { google.accounts.id.initialize({ client_id: config.googleClientId, callback: response => action(() => googleCredential(response)), auto_select: false }); google.accounts.id.renderButton($('#google-button'), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'es' }); };
+  document.head.append(script);
+}
+$('#account').onclick = () => { $('#account-dialog').showModal(); };
+$('#google-home').onclick = () => { $('#account-dialog').showModal(); };
+$('#account-close').onclick = () => $('#account-dialog').close();
+setupGoogle().catch(() => {});
 window.addEventListener('hashchange', route);
 route();
