@@ -124,6 +124,7 @@ function render() {
   $('#locked').hidden = true; $('#group').hidden = false; $('#members-section').hidden = false; $('#settings').hidden = !group.owner;
   $('#privacy-note').textContent = group.protected ? 'Grupo protegido por contraseña. Comparte el enlace solo con los tuyos.' : 'Este grupo aún no tiene contraseña. Un administrador puede establecerla en Ajustes del grupo.';
   $('#group-name').textContent = group.name;
+  renderShareButton();
   $('#members').innerHTML = (group.members || []).map(member => `<article class="card"><strong>${esc(member.name)}${member.mine ? ' (tú)' : ''}</strong><p class="muted">${member.admin ? 'Administrador' : 'Miembro'}</p>${group.owner ? `<button class="secondary" data-member="${esc(member.id)}" data-admin="${!member.admin}">${member.admin ? 'Quitar administración' : 'Nombrar administrador'}</button><button class="secondary" data-expel="${esc(member.id)}">Expulsar miembro</button>` : ''}</article>`).join('');
   const canCreate = !group.closed;
   $('#new-event').hidden = !canCreate;
@@ -138,12 +139,52 @@ function render() {
 
 async function load() { group = await api(); remember(); render(); if (group.slug) history.replaceState(null, '', '/' + group.slug); }
 function groupUrl() { return group.slug ? `${location.origin}/${group.slug}` : `${location.origin}/#g=${id}`; }
+const platformDetails = {
+  whatsapp: {label:'Compartir por WhatsApp', className:'whatsapp', url: text => `https://wa.me/?text=${encodeURIComponent(text)}`},
+  telegram: {label:'Compartir por Telegram', className:'telegram', url: text => `https://t.me/share/url?${new URLSearchParams({url:groupUrl(),text})}`},
+  facebook: {label:'Compartir en Facebook', className:'facebook', url: () => `https://www.facebook.com/sharer/sharer.php?${new URLSearchParams({u:groupUrl()})}`},
+  otro: {label:'Compartir enlace del grupo', className:'generic', url: () => ''}
+};
+function renderShareButton() {
+  const button = $('#share-platform'), platform = platformDetails[group.platform] || platformDetails.whatsapp;
+  button.textContent = platform.label; button.className = platform.className;
+}
+function shareGroup() {
+  const platform = platformDetails[group.platform] || platformDetails.whatsapp;
+  const text = `Únete a ${group.name} en Quedario y apúntate a nuestros planes: ${groupUrl()}`;
+  if (group.platform === 'otro') return navigator.clipboard.writeText(groupUrl()).then(() => notice('Enlace del grupo copiado.'));
+  window.open(platform.url(text), '_blank', 'noopener,noreferrer');
+}
+async function promoteQuedario() {
+  const url = location.origin, text = '¿Quieres tener Quedario en otros grupos? Muéstrales el enlace y organizad vuestros planes en un solo sitio.';
+  if (navigator.share) { await navigator.share({title:'Quedario', text, url}); return; }
+  await navigator.clipboard.writeText(`${text} ${url}`); notice('Mensaje y enlace de Quedario copiados.');
+}
+async function loadMyAgenda() {
+  const panel = $('#my-agenda'), content = $('#my-agenda-items');
+  panel.hidden = false; content.textContent = 'Preparando tu agenda…';
+  const entries = await Promise.all(Object.entries(saved).map(async ([groupId, name]) => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, {headers:{'X-Participant':token}});
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.events.filter(event => new Date(event.endDate || event.date) > new Date()).map(event => ({...event, groupId, groupName:data.name || name}));
+    } catch { return []; }
+  }));
+  const events = entries.flat().sort((a, b) => new Date(a.date) - new Date(b.date));
+  content.innerHTML = events.length ? events.map(event => `<a class="card saved-link agenda-link" href="#g=${esc(event.groupId)}"><span class="badge">${icon(eventCategory(event))}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p>${esc(timeLabel(new Date(event.date)))} · ${esc(event.place)}</p><p class="muted">Grupo: ${esc(event.groupName)}</p></a>`).join('') : '<p class="muted">No tienes actividades futuras en los grupos guardados en este navegador.</p>';
+}
 async function route() {
   if (location.pathname === '/tablero') {
     $('#home').hidden = true; $('#group').hidden = true; $('#locked').hidden = true; $('#members-section').hidden = true; $('#dashboard').hidden = false;
     return;
   }
   $('#dashboard').hidden = true;
+  if (location.hash === '#agenda') {
+    id = undefined; $('#home').hidden = false; $('#group').hidden = true; $('#locked').hidden = true; $('#members-section').hidden = true;
+    await loadMyAgenda(); return;
+  }
+  $('#my-agenda').hidden = true;
   if (location.pathname !== '/') {
     const slug = location.pathname.split('/').filter(Boolean).join('/');
     try { const response = await fetch('/api/resolve/' + encodeURIComponent(slug)); const data = await response.json(); if (!response.ok) throw new Error(data.error); history.replaceState(null, '', '/#g=' + data.id); } catch (error) { notice(error.message); return; }
@@ -311,8 +352,8 @@ $('#category-picker').onchange = event => selectCategory(event.target.value);
 $('#past').onchange = render;
 $('#refresh').onclick = () => action(load);
 $('#copy').onclick = () => action(async () => { await navigator.clipboard.writeText(groupUrl()); notice('Enlace del grupo copiado.'); });
-$('#share').onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Únete a ${group.name} en Quedario y apúntate a nuestros planes: ${groupUrl()}`)}`, '_blank', 'noopener,noreferrer');
-$('#share-telegram').onclick = () => window.open(`https://t.me/share/url?${new URLSearchParams({url:groupUrl(),text:`Únete a ${group.name} en Quedario y apúntate a nuestros planes.`})}`, '_blank', 'noopener,noreferrer');
+$('#share-platform').onclick = () => action(shareGroup);
+$('#promote-quedario').onclick = () => action(promoteQuedario);
 
 function dashboardCard(label, value) { return `<article class="card"><strong>${esc(String(value))}</strong><p class="muted">${esc(label)}</p></article>`; }
 $('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {

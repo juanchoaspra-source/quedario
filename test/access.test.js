@@ -8,6 +8,12 @@ test('vincula el navegador previo con la cuenta autenticada sin perder permisos 
  assert.equal(linkLegacyIdentity(group,legacy,account),true);
  assert.equal(group.owner,account); assert.deepEqual(group.admins,[account]); assert.equal(group.members[0].token,account); assert.equal(group.events[0].creatorToken,account); assert.equal(group.events[0].participants[0].token,account); assert.equal(group.events[0].comments[0].token,account);
 });
+test('conserva el canal elegido para compartir el grupo', async () => {
+ const owner=crypto.randomUUID(), map=new Map();
+ const instance=new Group({storage:{get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),delete:async k=>map.delete(k),deleteAll:async()=>map.clear()},blockConcurrencyWhile:fn=>fn()});
+ const response=await instance.fetch(new Request('https://example.com/api/groups/'+crypto.randomUUID(),{method:'POST',headers:{'X-Participant':owner},body:JSON.stringify({name:'Grupo Telegram',platform:'telegram'})}));
+ assert.equal((await response.json()).platform,'telegram');
+});
 test('migra el grupo existente, protege datos, administra permisos y revoca contraseñas', async () => {
  const owner=crypto.randomUUID(), guest=crypto.randomUUID(), stranger=crypto.randomUUID();
  const map=new Map([['group',{name:'Grupo existente',owner,events:[]}]]);

@@ -18,6 +18,7 @@ const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/"
 };
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { ...securityHeaders, ...headers } });
+const groupPlatform = value => ['whatsapp', 'telegram', 'facebook', 'otro'].includes(value) ? value : 'whatsapp';
 function secure(response) {
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(securityHeaders)) if (!headers.has(name)) headers.set(name, value);
@@ -102,7 +103,7 @@ export class Group {
         const body = raw ? JSON.parse(raw) : {};
         if (request.method === 'POST' && path.length === 0) {
           if (group) return locked();
-          group = migrate({ name: text(body.name, 80), owner: token, events: [] });
+          group = migrate({ name: text(body.name, 80), platform: groupPlatform(body.platform), owner: token, events: [] });
           if(body.password) await setPassword(group, body.password);
           if(this.env?.NAMES){
             const response=await namesRequest(this.env,'/claim',{slug:slugify(body.slug || group.name),id:new URL(request.url).pathname.split('/')[3]});

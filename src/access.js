@@ -1,4 +1,5 @@
 export function migrate(group) {
+  group.platform ??= 'whatsapp';
   group.admins ??= [group.owner];
   group.members ??= [];
   group.accessVersion ??= 0;
