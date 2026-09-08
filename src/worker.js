@@ -15,7 +15,7 @@ const securityHeaders = {
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'geolocation=(self), camera=(), microphone=()',
   'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/"
+  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://accounts.google.com/gsi/client https://unpkg.com; style-src 'self' https://accounts.google.com/gsi/style https://unpkg.com; img-src 'self' data: https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://unpkg.com; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/"
 };
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { ...securityHeaders, ...headers } });
 const groupPlatform = value => ['whatsapp', 'telegram', 'facebook', 'otro'].includes(value) ? value : 'whatsapp';
@@ -110,7 +110,7 @@ export class Group {
             const result=await response.json();if(!response.ok)return json(result,response.status);
             group.slug=result.slug;
           }
-          await analyticsRequest(this.env, { type: 'group-created' });
+          await analyticsRequest(this.env, { type: 'group-created', groupId: new URL(request.url).pathname.split('/')[3], memberId: token });
         } else {
           if (!group) return locked();
           if (group.banned.includes(token)) return locked();
@@ -120,7 +120,7 @@ export class Group {
             await this.ctx.storage.deleteAll();
             await this.ctx.storage.put('deleted',true);
             if(group.slug && this.env?.NAMES)await namesRequest(this.env,'/release',{slug:group.slug,id:new URL(request.url).pathname.split('/')[3]});
-            await analyticsRequest(this.env, { type: 'group-deleted' });
+            await analyticsRequest(this.env, { type: 'group-deleted', groupId: new URL(request.url).pathname.split('/')[3] });
             return json({deleted:true});
           } else if (path.length === 1 && path[0] === 'unlock' && request.method === 'POST') {
             if (group.closed && !group.members.some(m => m.token === token)) return locked();
@@ -141,7 +141,7 @@ export class Group {
             const wasMember = group.members.some(item => item.token === token);
             const member = ensureMember(group, token, name);
             member.name = name; member.version = group.accessVersion;
-            if (!wasMember) await analyticsRequest(this.env, { type: 'member-joined' });
+            if (!wasMember) await analyticsRequest(this.env, { type: 'member-joined', groupId: new URL(request.url).pathname.split('/')[3], memberId: token });
           } else if (!canRead(group, token)) return locked();
           else if (path.length === 1 && path[0] === 'settings' && request.method === 'PATCH') {
             if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden modificar los ajustes.' }, 403);
@@ -182,7 +182,7 @@ export class Group {
             const member = group.members.find(m => m.token === token);
             addComment(event, token, member?.name || 'Administrador', body.comment);
             group.events.push(event);
-            await analyticsRequest(this.env, { type: 'activity-created', city: event.city, place: event.place });
+            await analyticsRequest(this.env, { type: 'activity-created', city: event.city, place: event.place, location: event.location });
           } else {
             const event = group.events.find(e => e.id === path[1]);
             if (!event) return json({ error: 'Quedada no encontrada.' }, 404);
@@ -190,9 +190,11 @@ export class Group {
               if (group.closed) throw new Error('El grupo está cerrado y no admite inscripciones.');
               const wasEnrolled = event.participants.some(participant => participant.token === token);
               enroll(event, token, body.name);
+              const wasMember = group.members.some(member => member.token === token);
               const member = ensureMember(group, token, body.name);
               member.name = text(body.name, 60);
               addComment(event, token, member.name, body.comment);
+              if (!wasMember) await analyticsRequest(this.env, { type: 'member-joined', groupId: new URL(request.url).pathname.split('/')[3], memberId: token });
               if (!wasEnrolled) await analyticsRequest(this.env, { type: 'signup', city: event.city, place: event.place });
             }
             else if (path.length === 3 && path[2] === 'participants' && request.method === 'DELETE') event.participants = event.participants.filter(p => p.token !== token);

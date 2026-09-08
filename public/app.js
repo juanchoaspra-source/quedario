@@ -27,7 +27,7 @@ const categoryGroups = {
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${categories[key][1]}"/></svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-let token, saved, group, id, filter = 'all', joining, editingId;
+let token, saved, group, id, filter = 'all', joining, editingId, dashboardMap;
 
 try {
   token = localStorage.getItem('quedario.identity') || crypto.randomUUID();
@@ -356,14 +356,30 @@ $('#share-platform').onclick = () => action(shareGroup);
 $('#promote-quedario').onclick = () => action(promoteQuedario);
 
 function dashboardCard(label, value) { return `<article class="card"><strong>${esc(String(value))}</strong><p class="muted">${esc(label)}</p></article>`; }
+function renderDashboardMap(locations) {
+  const mapped = locations.filter(location => location.location);
+  const section = $('#dashboard-map-section');
+  section.hidden = !mapped.length;
+  if (!mapped.length || !window.L) return;
+  if (dashboardMap) dashboardMap.remove();
+  dashboardMap = window.L.map('dashboard-map');
+  window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'© OpenStreetMap contributors', maxZoom:19}).addTo(dashboardMap);
+  const points = mapped.map(location => [location.location.latitude, location.location.longitude]);
+  for (const location of mapped) {
+    const detail = `<strong>${esc(location.place)}</strong><br>${esc(location.city)}<br>${location.activities} actividades · ${location.signups} inscripciones<br><a href="${esc(mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir en Google Maps</a>`;
+    window.L.marker([location.location.latitude, location.location.longitude]).addTo(dashboardMap).bindPopup(detail);
+  }
+  dashboardMap.fitBounds(points, {padding:[28,28], maxZoom:14});
+}
 $('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {
   const key = event.currentTarget.elements.key.value;
   const response = await fetch('/api/admin/dashboard', { headers: { 'X-Admin-Key': key } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'No se pudo abrir el tablero.');
   $('#dashboard-status').textContent = 'Datos actualizados.';
-  $('#dashboard-data').innerHTML = [['Grupos creados', data.groupsCreated], ['Grupos borrados', data.groupsDeleted], ['Altas en grupos', data.membersJoined], ['Actividades creadas', data.activitiesCreated], ['Inscripciones', data.signups]].map(([label, value]) => dashboardCard(label, value)).join('');
-  $('#dashboard-locations').innerHTML = `<h2>Lugares con más actividad</h2>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card"><h3>${esc(location.place)}</h3><p>${esc(location.city)}</p><p class="muted">${location.activities} actividades · ${location.signups} inscripciones</p></article>`).join('')}</div>` : '<p class="muted">Aún no hay lugares registrados.</p>'}`;
+  $('#dashboard-data').innerHTML = [['Grupos activos', data.activeGroups], ['Personas únicas', data.uniqueMembers], ['Actividades creadas', data.activitiesCreated], ['Inscripciones acumuladas', data.signups], ['Locales detectados', data.locations.length]].map(([label, value]) => dashboardCard(label, value)).join('');
+  $('#dashboard-locations').innerHTML = `<h2>Fichas de locales</h2>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.place)}</h3><p>${esc(location.city)}</p></div><div class="location-counts"><strong>${location.activities}</strong><span>actividades</span><strong>${location.signups}</strong><span>inscripciones</span></div><p class="muted">${location.location ? 'Ubicación exacta disponible.' : 'Pendiente de localizar con una dirección o ubicación exacta.'}</p><a class="map-link" href="${esc(mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
+  renderDashboardMap(data.locations);
 }); };
 
 $('#settings').onclick = () => { const form = $('#settings-form'); form.elements.name.value = group.name; form.elements.password.value = ''; form.elements.passwordConfirm.value = ''; form.elements.passwordConfirm.setCustomValidity(''); form.elements.passwordConfirm.required = false; $('#settings-dialog').showModal(); };
