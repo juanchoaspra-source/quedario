@@ -351,7 +351,14 @@ $('#events').onclick = event => {
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const eventId = button.dataset.event;
-  if (button.dataset.action === 'join') { joining = eventId; notice(''); $('#join-dialog').showModal(); return; }
+  if (button.dataset.action === 'join') {
+    joining = eventId;
+    const form = $('#join-form');
+    const knownMember = group.members?.find(member => member.mine)?.name || '';
+    form.elements.name.value = account?.name || knownMember;
+    notice(''); $('#join-dialog').showModal();
+    return;
+  }
   if (button.dataset.action === 'edit') {
     const plan = group.events.find(item => item.id === eventId);
     if (!plan) { notice('No se ha encontrado esta actividad. Actualiza el grupo e inténtalo de nuevo.'); return; }
