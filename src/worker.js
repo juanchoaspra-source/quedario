@@ -190,7 +190,7 @@ export class Group {
             const member = group.members.find(m => m.token === token);
             addComment(event, token, member?.name || 'Administrador', body.comment);
             group.events.push(event);
-            await analyticsRequest(this.env, { type: 'activity-created', city: event.city, place: event.place, location: event.location });
+            await analyticsRequest(this.env, { type: 'activity-created', groupId: new URL(request.url).pathname.split('/')[3], city: event.city, place: event.place, location: event.location });
           } else {
             const event = group.events.find(e => e.id === path[1]);
             if (!event) return json({ error: 'Quedada no encontrada.' }, 404);
@@ -203,7 +203,7 @@ export class Group {
               member.name = text(body.name, 60);
               addComment(event, token, member.name, body.comment);
               if (!wasMember) await analyticsRequest(this.env, { type: 'member-joined', groupId: new URL(request.url).pathname.split('/')[3], memberId: token });
-              if (!wasEnrolled) await analyticsRequest(this.env, { type: 'signup', city: event.city, place: event.place, date: event.date });
+              if (!wasEnrolled) await analyticsRequest(this.env, { type: 'signup', groupId: new URL(request.url).pathname.split('/')[3], memberId: token, city: event.city, place: event.place, date: event.date });
             }
             else if (path.length === 3 && path[2] === 'participants' && request.method === 'DELETE') event.participants = event.participants.filter(p => p.token !== token);
             else if (path.length === 2 && request.method === 'PATCH') {

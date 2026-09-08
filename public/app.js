@@ -27,7 +27,7 @@ const categoryGroups = {
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${categories[key][1]}"/></svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-let token, saved, group, id, filter = 'all', joining, editingId, dashboardMap, focusedEventId;
+let token, saved, group, id, filter = 'all', joining, editingId, dashboardMap, focusedEventId, dashboardData, dashboardChart = 'activities';
 
 try {
   token = localStorage.getItem('quedario.identity') || crypto.randomUUID();
@@ -392,7 +392,43 @@ $('#copy').onclick = () => action(async () => { await navigator.clipboard.writeT
 $('#share-platform').onclick = () => action(shareGroup);
 $('#promote-quedario').onclick = () => action(promoteQuedario);
 
-function dashboardCard(label, value) { return `<article class="card"><strong>${esc(String(value))}</strong><p class="muted">${esc(label)}</p></article>`; }
+const dashboardMetricInfo = {
+  groups: ['Grupos activos', 'Grupos que siguen existiendo en Quedario. Pulsa para ver su ficha, ciudad, canal y miembros actuales.', 'dashboard-groups'],
+  users: ['Usuarios totales', 'Personas únicas que pertenecen actualmente a uno o más grupos. Una misma persona en varios grupos cuenta una sola vez.', 'dashboard-explainer'],
+  dailyUsers: ['Media de usuarios diarios', 'Media de personas únicas que han creado un grupo, se han unido o se han apuntado a una actividad durante los últimos 30 días.', 'dashboard-insights'],
+  activities: ['Actividades creadas', 'Total de quedadas publicadas desde que el tablero empezó a registrar actividad.', 'dashboard-insights'],
+  signups: ['Inscripciones acumuladas', 'Número de veces que una persona se ha apuntado a una actividad. No equivale todavía a asistencia confirmada.', 'dashboard-insights'],
+  locations: ['Locales detectados', 'Fichas únicas de lugares organizadas por ciudad y nombre, unificadas cuando Google Places identifica el mismo local.', 'dashboard-locations']
+};
+function dashboardCard(key, value) {
+  const [label, description, target] = dashboardMetricInfo[key];
+  return `<button type="button" class="card dashboard-card" data-metric="${key}" data-target="${target}"><strong>${esc(String(value))}</strong><span>${esc(label)}</span><small>Ver detalle ↗</small><span class="sr-only">${esc(description)}</span></button>`;
+}
+function renderDashboardExplanation(key = 'groups') {
+  const [label, description] = dashboardMetricInfo[key];
+  $('#dashboard-explainer').innerHTML = `<strong>${esc(label)}</strong><p>${esc(description)}</p>`;
+}
+function renderTimelineChart() {
+  const data = dashboardData?.timeline || [];
+  const labels = { activities:'Actividad publicada', signups:'Inscripciones', users:'Usuarios activos' };
+  const colors = { activities:'#1e88e5', signups:'#d81b60', users:'#43a047' };
+  const values = data.map(day => Number(day[dashboardChart]) || 0), maximum = Math.max(1, ...values);
+  const width = 900, height = 250, inset = 34, plotHeight = height - inset * 2, plotWidth = width - inset * 2;
+  const barWidth = Math.max(4, plotWidth / Math.max(values.length, 1) - 5);
+  const bars = values.map((value, index) => {
+    const x = inset + index * (plotWidth / values.length) + 2;
+    const barHeight = value / maximum * plotHeight;
+    return `<rect x="${x.toFixed(1)}" y="${(height - inset - barHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="3"><title>${esc(data[index].day)}: ${value}</title></rect>`;
+  }).join('');
+  const dates = data.length ? `<text x="${inset}" y="${height - 8}">${esc(data[0].day.slice(5))}</text><text text-anchor="end" x="${width - inset}" y="${height - 8}">${esc(data.at(-1).day.slice(5))}</text>` : '';
+  $('#dashboard-chart').innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(labels[dashboardChart])} de los últimos 30 días"><line x1="${inset}" x2="${width - inset}" y1="${height - inset}" y2="${height - inset}"/><text x="${inset}" y="20">Máximo diario: ${maximum}</text><g fill="${colors[dashboardChart]}">${bars}</g><g class="chart-axis">${dates}</g></svg>`;
+  $('#dashboard-chart-title').textContent = `${labels[dashboardChart]} · últimos 30 días`;
+  document.querySelectorAll('[data-chart]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.chart === dashboardChart)));
+}
+function renderDashboardInsights(data) {
+  $('#dashboard-insights').innerHTML = `<section class="dashboard-section" id="dashboard-activity"><div class="toolbar"><div><p class="eyebrow">ACTIVIDAD RECIENTE</p><h2 id="dashboard-chart-title"></h2></div><div class="chart-controls"><button type="button" class="secondary" data-chart="activities">Planes</button><button type="button" class="secondary" data-chart="signups">Inscripciones</button><button type="button" class="secondary" data-chart="users">Usuarios activos</button></div></div><div id="dashboard-chart" class="dashboard-chart"></div><h3>Grupos con más actividad</h3>${data.activeGroupDetails?.length ? `<div class="dashboard-table"><div class="dashboard-table-head"><span>Grupo</span><span>Ciudad</span><span>Canal</span><span>Miembros</span><span>Planes</span><span>Inscripciones</span></div>${data.activeGroupDetails.map(group => `<div class="dashboard-table-row"><strong>${esc(group.name)}</strong><span>${esc(group.city || '—')}</span><span>${esc({whatsapp:'WhatsApp',telegram:'Telegram',facebook:'Facebook',otro:'Otro'}[group.platform] || 'WhatsApp')}</span><span>${group.members}</span><span>${group.activities}</span><span>${group.signups}</span></div>`).join('')}</div>` : '<p class="muted">La actividad por grupo empezará a reflejarse a partir de este despliegue.</p>'}</section>`;
+  renderTimelineChart();
+}
 function renderDashboardMap(locations) {
   const mapped = locations.filter(location => location.location);
   const section = $('#dashboard-map-section');
@@ -422,14 +458,17 @@ function locationCounts(location) {
 }
 function dashboardGroup(group) {
   const channels = { whatsapp:'WhatsApp', telegram:'Telegram', facebook:'Facebook', otro:'Otro canal' };
-  return `<article class="card location-card"><div><h3>${esc(group.name)}</h3><p>${esc(group.city || 'Ciudad no indicada')}</p><p class="muted">Creado para ${esc(channels[group.platform] || 'WhatsApp')}</p></div><div class="location-counts"><strong>${group.members}</strong><span>${group.members === 1 ? 'persona inscrita' : 'personas inscritas'}</span></div></article>`;
+  return `<article class="card location-card"><div><h3>${esc(group.name)}</h3><p>${esc(group.city || 'Ciudad no indicada')}</p><p class="muted">Creado para ${esc(channels[group.platform] || 'WhatsApp')}</p></div><div class="location-counts"><strong>${group.members}</strong><span>${group.members === 1 ? 'persona inscrita' : 'personas inscritas'}</span><strong>${group.activities}</strong><span>planes</span><strong>${group.signups}</strong><span>inscripciones</span></div></article>`;
 }
 async function loadDashboard(key) {
   const response = await fetch('/api/admin/dashboard', { headers: { 'X-Admin-Key': key } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'No se pudo abrir el tablero.');
+  dashboardData = data;
   $('#dashboard-status').textContent = 'Datos actualizados.';
-  $('#dashboard-data').innerHTML = [['Grupos activos', data.activeGroups], ['Personas únicas', data.uniqueMembers], ['Actividades creadas', data.activitiesCreated], ['Inscripciones acumuladas', data.signups], ['Locales detectados', data.locations.length]].map(([label, value]) => dashboardCard(label, value)).join('');
+  $('#dashboard-data').innerHTML = [['groups', data.activeGroups], ['users', data.uniqueMembers], ['dailyUsers', data.averageDailyUsers], ['activities', data.activitiesCreated], ['signups', data.signups], ['locations', data.locations.length]].map(([key, value]) => dashboardCard(key, value)).join('');
+  renderDashboardExplanation();
+  renderDashboardInsights(data);
   $('#dashboard-groups').innerHTML = `<h2>Grupos creados</h2>${data.groups?.length ? `<div class="agenda-list">${data.groups.map(dashboardGroup).join('')}</div>` : '<p class="muted">Los grupos aparecerán aquí a medida que se creen o se actualicen sus ajustes.</p>'}`;
   $('#dashboard-locations').innerHTML = `<div class="toolbar"><h2>Fichas de locales</h2><button type="button" class="secondary" id="enrich-places">Completar fichas pendientes</button></div><p class="muted">Consulta hasta 20 locales sin ficha en cada actualización. Las personas apuntadas reflejan inscripciones; podrás confirmar asistencia real cuando incorporemos ese paso.</p>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.google?.name || location.place)}</h3><p>${esc(location.city)}</p></div>${locationCounts(location)}${googlePlaceDetails(location)}<a class="map-link" href="${esc(location.google?.mapsUrl || mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
   renderDashboardMap(data.locations);
@@ -437,6 +476,18 @@ async function loadDashboard(key) {
 $('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {
   await loadDashboard(event.currentTarget.elements.key.value);
 }); };
+$('#dashboard-data').onclick = event => {
+  const button = event.target.closest('[data-metric]');
+  if (!button) return;
+  renderDashboardExplanation(button.dataset.metric);
+  document.getElementById(button.dataset.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+$('#dashboard-insights').onclick = event => {
+  const button = event.target.closest('[data-chart]');
+  if (!button) return;
+  dashboardChart = button.dataset.chart;
+  renderTimelineChart();
+};
 $('#dashboard-locations').onclick = event => {
   if (event.target.id !== 'enrich-places') return;
   action(async () => {
