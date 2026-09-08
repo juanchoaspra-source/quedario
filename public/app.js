@@ -45,8 +45,8 @@ function notice(message) {
     if (inline) inline.textContent = message;
   }
 }
-window.addEventListener('error', () => notice('No se pudo completar la acción. Recarga la página e inténtalo de nuevo.'));
-window.addEventListener('unhandledrejection', () => notice('No se pudo completar la acción. Comprueba tu conexión y vuelve a intentarlo.'));
+window.addEventListener('error', event => notice(event.error?.message || event.message || 'No se pudo completar la acción. Recarga la página e inténtalo de nuevo.'));
+window.addEventListener('unhandledrejection', event => notice(event.reason?.message || 'No se pudo completar la acción. Comprueba tu conexión y vuelve a intentarlo.'));
 function remember() { saved[id] = group.name; localStorage.setItem('quedario.groups', JSON.stringify(saved)); }
 
 async function api(path = '', method = 'GET', body) {
@@ -212,10 +212,14 @@ function openEventDialog(eventToEdit) {
     if (eventToEdit.location) { form.dataset.latitude = String(eventToEdit.location.latitude); form.dataset.longitude = String(eventToEdit.location.longitude); }
   }
   updateEventImagePreview(eventToEdit?.image || '');
-  $('#event-dialog h2').textContent = eventToEdit ? 'Editar actividad' : 'Un nuevo plan'; form.querySelector('button[type="submit"]').textContent = eventToEdit ? 'Guardar cambios' : 'Crear quedada'; updateDetail(); updatePlacePreview(); $('#event-dialog').showModal(); form.elements.title.focus();
+  $('#event-dialog h2').textContent = eventToEdit ? 'Editar actividad' : 'Un nuevo plan'; form.querySelector('button[type="submit"]').textContent = eventToEdit ? 'Guardar cambios' : 'Crear quedada'; updateDetail(); updatePlacePreview();
+  const dialog = $('#event-dialog');
+  if (!dialog.open) dialog.showModal();
+  form.elements.title.focus();
 }
 function updateEventImagePreview(image) {
   const preview = $('#event-image-preview');
+  if (!preview) return;
   if (!image) { preview.hidden = true; preview.innerHTML = ''; return; }
   preview.hidden = false;
   preview.innerHTML = `<img src="${esc(image)}" alt="Vista previa de la imagen"><button type="button" class="secondary" id="remove-event-image">Quitar imagen</button>`;
@@ -242,7 +246,7 @@ $('#event-form select').onchange = updateDetail;
 $('#event-form').elements.date.addEventListener('input', syncEndDate);
 $('#event-form').elements.endDate.addEventListener('input', event => { event.target.dataset.followsStart = event.target.value === $('#event-form').elements.date.value ? 'true' : 'false'; });
 $('#event-form').elements.place.addEventListener('input', updatePlacePreview);
-$('#event-form').elements.imageFile.addEventListener('change', event => action(async () => { const file = event.target.files[0]; if (!file) return; const image = await compressEventImage(file); const form = $('#event-form'); form.dataset.image = image; delete form.dataset.removeImage; updateEventImagePreview(image); }));
+$('#event-form').elements.imageFile?.addEventListener('change', event => action(async () => { const file = event.target.files[0]; if (!file) return; const image = await compressEventImage(file); const form = $('#event-form'); form.dataset.image = image; delete form.dataset.removeImage; updateEventImagePreview(image); }));
 document.querySelectorAll('[data-open-event]').forEach(button => button.onclick = () => openEventDialog());
 $('#close').onclick = () => $('#event-dialog').close();
 $('#join-close').onclick = () => $('#join-dialog').close();
@@ -283,7 +287,12 @@ $('#events').onclick = event => {
   if (!button) return;
   const eventId = button.dataset.event;
   if (button.dataset.action === 'join') { joining = eventId; notice(''); $('#join-dialog').showModal(); return; }
-  if (button.dataset.action === 'edit') { openEventDialog(group.events.find(item => item.id === eventId)); return; }
+  if (button.dataset.action === 'edit') {
+    const plan = group.events.find(item => item.id === eventId);
+    if (!plan) { notice('No se ha encontrado esta actividad. Actualiza el grupo e inténtalo de nuevo.'); return; }
+    try { openEventDialog(plan); } catch (error) { notice(error.message || 'No se pudo abrir la edición de esta actividad.'); }
+    return;
+  }
   if (!confirm(button.dataset.action === 'cancel' ? '¿Cancelar esta quedada para todo el grupo?' : '¿Salir de la quedada? La primera persona en espera ocupará tu plaza.')) return;
   action(async () => { group = await api(`/events/${eventId}${button.dataset.action === 'leave' ? '/participants' : ''}`, 'DELETE'); render(); });
 };
