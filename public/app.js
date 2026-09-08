@@ -203,6 +203,7 @@ function localInputDate(value) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function openEventDialog(eventToEdit) {
+  if (!eventToEdit || !eventToEdit.id) eventToEdit = undefined;
   const form = $('#event-form'); form.reset(); delete form.elements.endDate.dataset.followsStart; notice(''); clearDraftLocation(); editingId = eventToEdit?.id;
   if (eventToEdit) {
     form.elements.title.value = eventToEdit.title; form.elements.category.value = eventToEdit.category; form.elements.detail.value = eventToEdit.detail || '';
@@ -340,7 +341,7 @@ async function googleCredential(response) {
 async function setupGoogle() {
   const config = await (await fetch('/api/auth/config')).json();
   const me = await (await fetch('/api/auth/me')).json(); account = me.account; renderAccount();
-  if (!config.googleClientId) return;
+  if (!config.googleClientId) { $('#account-content').innerHTML = '<p class="muted">El acceso con Google aún no está configurado en producción.</p>'; return; }
   const script = document.createElement('script'); script.src = 'https://accounts.google.com/gsi/client'; script.async = true;
   script.onload = () => { google.accounts.id.initialize({ client_id: config.googleClientId, callback: response => action(() => googleCredential(response)), auto_select: false }); google.accounts.id.renderButton($('#google-button'), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'es' }); };
   document.head.append(script);
