@@ -35,3 +35,19 @@ test('completa una ficha nueva con Google Places y la conserva en el tablero', a
     assert.deepEqual(report.locations[0].location, { latitude: 41.65, longitude: -0.88 });
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test('fusiona el mismo local aunque se escriba de otra manera', async () => {
+  const data = new Map();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ places: [{ id: 'same-place', displayName: { text: 'Café Central' }, location: { latitude: 41.65, longitude: -0.88 } }] }), { status: 200 });
+  try {
+    const dashboard = new Dashboard({ storage: { get: async key => structuredClone(data.get(key)), put: async (key, value) => data.set(key, structuredClone(value)) } }, { GOOGLE_PLACES_API_KEY: 'secret' });
+    const record = body => dashboard.fetch(new Request('https://analytics/record', { method: 'POST', body: JSON.stringify(body) }));
+    await record({ type: 'activity-created', city: 'Zaragoza', place: 'Café Central', date: '2026-09-12T13:30:00.000Z' });
+    await record({ type: 'activity-created', city: 'Zaragoza', place: 'Cafe Central', date: '2026-09-20T13:30:00.000Z' });
+    const report = await (await dashboard.fetch(new Request('https://analytics/dashboard'))).json();
+    assert.equal(report.locations.length, 1);
+    assert.equal(report.locations[0].activities, 2);
+    assert.equal(report.locations[0].months['2026-09'].activities, 2);
+  } finally { globalThis.fetch = originalFetch; }
+});
