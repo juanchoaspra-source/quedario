@@ -460,6 +460,12 @@ function dashboardGroup(group) {
   const channels = { whatsapp:'WhatsApp', telegram:'Telegram', facebook:'Facebook', otro:'Otro canal' };
   return `<article class="card location-card"><div><h3>${esc(group.name)}</h3><p>${esc(group.city || 'Ciudad no indicada')}</p><p class="muted">Creado para ${esc(channels[group.platform] || 'WhatsApp')}</p></div><div class="location-counts"><strong>${group.members}</strong><span>${group.members === 1 ? 'persona inscrita' : 'personas inscritas'}</span><strong>${group.activities}</strong><span>planes</span><strong>${group.signups}</strong><span>inscripciones</span></div></article>`;
 }
+async function refreshDashboard(key) {
+  const response = await fetch('/api/admin/dashboard/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key }, body: JSON.stringify({ groupIds: Object.keys(saved) }) });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'No se han podido actualizar las cifras.');
+  return result;
+}
 async function loadDashboard(key) {
   const response = await fetch('/api/admin/dashboard', { headers: { 'X-Admin-Key': key } });
   const data = await response.json();
@@ -474,7 +480,10 @@ async function loadDashboard(key) {
   renderDashboardMap(data.locations);
 }
 $('#dashboard-form').onsubmit = event => { event.preventDefault(); action(async () => {
-  await loadDashboard(event.currentTarget.elements.key.value);
+  const key = event.currentTarget.elements.key.value;
+  const result = await refreshDashboard(key);
+  await loadDashboard(key);
+  $('#dashboard-status').textContent = `Cifras reales actualizadas: ${result.synced} de ${result.found} grupos sincronizados.`;
 }); };
 $('#dashboard-data').onclick = event => {
   const button = event.target.closest('[data-metric]');
@@ -492,9 +501,7 @@ $('#dashboard-groups').onclick = event => {
   if (event.target.id !== 'refresh-dashboard') return;
   action(async () => {
     const key = $('#dashboard-form').elements.key.value;
-    const response = await fetch('/api/admin/dashboard/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key }, body: JSON.stringify({ groupIds: Object.keys(saved) }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'No se han podido actualizar las cifras.');
+    const result = await refreshDashboard(key);
     await loadDashboard(key);
     $('#dashboard-status').textContent = `Cifras reales actualizadas: ${result.synced} de ${result.found} grupos sincronizados.`;
   });
