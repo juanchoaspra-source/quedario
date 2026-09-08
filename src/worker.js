@@ -69,6 +69,14 @@ export default {
       if (!env.ADMIN_DASHBOARD_KEY || request.headers.get('X-Admin-Key') !== env.ADMIN_DASHBOARD_KEY) return json({ error: 'Acceso privado no autorizado.' }, 401);
       return secure(await env.ANALYTICS.get(env.ANALYTICS.idFromName('private-dashboard')).fetch(new Request('https://analytics/enrich', { method: 'POST' })));
     }
+    if (url.pathname === '/api/admin/dashboard/refresh' && request.method === 'POST') {
+      if (!env.ADMIN_DASHBOARD_KEY || request.headers.get('X-Admin-Key') !== env.ADMIN_DASHBOARD_KEY) return json({ error: 'Acceso privado no autorizado.' }, 401);
+      const directory = await namesRequest(env, '/list', {});
+      const { ids = [] } = await directory.json();
+      const results = await Promise.allSettled(ids.map(groupId => env.GROUPS.get(env.GROUPS.idFromName(groupId)).fetch(new Request(`https://groups/api/groups/${groupId}/dashboard-sync`, { method: 'POST', headers: { 'X-Admin-Key': env.ADMIN_DASHBOARD_KEY } }))));
+      const synced = results.filter(result => result.status === 'fulfilled' && result.value.ok).length;
+      return json({ ok: true, found: ids.length, synced });
+    }
     const match = url.pathname.match(/^\/api\/groups\/([a-f0-9-]{36})(?:\/.*)?$/);
     if (!match) return json({ error: 'Ruta no encontrada.' }, 404);
     if (request.method === 'POST' && url.pathname === `/api/groups/${match[1]}`) {
@@ -90,11 +98,18 @@ export class Group {
   async fetch(request) {
     try {
         const token = request.headers.get('X-Participant');
-        if (!token || !/^[a-f0-9-]{36}$/.test(token)) return json({ error: 'Identificación no válida.' }, 401);
+        const internal = !!this.env?.ADMIN_DASHBOARD_KEY && request.headers.get('X-Admin-Key') === this.env.ADMIN_DASHBOARD_KEY;
+        if (!internal && (!token || !/^[a-f0-9-]{36}$/.test(token))) return json({ error: 'Identificación no válida.' }, 401);
         const path = new URL(request.url).pathname.split('/').slice(4);
         if(await this.ctx.storage.get('deleted')) return json({error:'Este grupo ha sido borrado.',deleted:true},410);
         let group = await this.ctx.storage.get('group');
         if (group) migrate(group);
+        if (internal && request.method === 'POST' && path.length === 1 && path[0] === 'dashboard-sync') {
+          if (!group) return json({ error: 'Este grupo no existe.' }, 404);
+          await analyticsRequest(this.env, { type: 'group-snapshot', groupId: new URL(request.url).pathname.split('/')[3], name: group.name, city: group.city, platform: group.platform, members: group.members.map(member => member.token), activities: group.events.length, signups: group.events.reduce((total, event) => total + event.participants.length, 0) });
+          await this.ctx.storage.put('group', group);
+          return json({ ok: true });
+        }
         if (group) linkLegacyIdentity(group, request.headers.get('X-Legacy-Participant'), token);
         const locked = () => json({ error: 'Introduce la contraseña del grupo para acceder.', locked: true }, 401);
         if (request.method === 'GET' && path.length === 0) {

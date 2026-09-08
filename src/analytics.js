@@ -97,10 +97,12 @@ export class Dashboard {
       const groups = Object.entries(stats.groups || {}).map(([id, group]) => ({ id, ...groupMetadata(group), members: (group.members || []).length, activities: group.activities || 0, signups: group.signups || 0, createdAt: group.createdAt || '' })).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.name.localeCompare(b.name, 'es'));
       const activeGroups = groups.length || Math.max(0, stats.groupsCreated - stats.groupsDeleted);
       const uniqueMembers = new Set(Object.values(stats.groups || {}).flatMap(group => group.members || [])).size;
+      const currentActivities = groups.reduce((total, group) => total + group.activities, 0);
+      const currentSignups = groups.reduce((total, group) => total + group.signups, 0);
       const timeline = lastDays().map(day => ({ day, users: (stats.daily?.activeUsers?.[day] || []).length, activities: dailyNumber(stats.daily, 'activities', day), signups: dailyNumber(stats.daily, 'signups', day) }));
       const averageDailyUsers = Math.round((timeline.reduce((sum, day) => sum + day.users, 0) / timeline.length) * 10) / 10;
       const activeGroupDetails = groups.filter(group => group.activities || group.signups).sort((a, b) => (b.activities + b.signups) - (a.activities + a.signups)).slice(0, 20);
-      return Response.json({ ...stats, activeGroups, uniqueMembers, locations, groups, timeline, averageDailyUsers, activeGroupDetails });
+      return Response.json({ ...stats, activeGroups, uniqueMembers, currentActivities, currentSignups, locations, groups, timeline, averageDailyUsers, activeGroupDetails });
     }
     if (request.method !== 'POST') return Response.json({ error: 'Método no permitido.' }, { status: 405 });
     if (url.pathname === '/enrich') {
@@ -126,6 +128,14 @@ export class Dashboard {
       if (event.type === 'group-synced' && Array.isArray(event.members)) {
         group.members = (await Promise.all(event.members.slice(0, 2000).map(memberFingerprint))).filter(Boolean);
       }
+    }
+    if (event.type === 'group-snapshot' && event.groupId) {
+      const group = stats.groups[event.groupId] ??= { members: [], activities: 0, signups: 0, createdAt: '' };
+      Object.assign(group, groupMetadata(event));
+      group.members = (await Promise.all((Array.isArray(event.members) ? event.members : []).slice(0, 2000).map(memberFingerprint))).filter(Boolean);
+      group.activities = Math.max(0, Math.min(200, Number(event.activities) || 0));
+      group.signups = Math.max(0, Math.min(200000, Number(event.signups) || 0));
+      group.snapshotAt = new Date().toISOString();
     }
     if (event.type === 'group-deleted') {
       stats.groupsDeleted++;

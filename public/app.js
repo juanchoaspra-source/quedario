@@ -396,8 +396,8 @@ const dashboardMetricInfo = {
   groups: ['Grupos activos', 'Grupos que siguen existiendo en Quedario. Pulsa para ver su ficha, ciudad, canal y miembros actuales.', 'dashboard-groups'],
   users: ['Usuarios totales', 'Personas únicas que pertenecen actualmente a uno o más grupos. Una misma persona en varios grupos cuenta una sola vez.', 'dashboard-explainer'],
   dailyUsers: ['Media de usuarios diarios', 'Media de personas únicas que han creado un grupo, se han unido o se han apuntado a una actividad durante los últimos 30 días.', 'dashboard-insights'],
-  activities: ['Actividades creadas', 'Total de quedadas publicadas desde que el tablero empezó a registrar actividad.', 'dashboard-insights'],
-  signups: ['Inscripciones acumuladas', 'Número de veces que una persona se ha apuntado a una actividad. No equivale todavía a asistencia confirmada.', 'dashboard-insights'],
+  activities: ['Actividades vigentes', 'Quedadas que existen ahora mismo en los grupos sincronizados. Pulsa para ver su evolución y el detalle por grupo.', 'dashboard-insights'],
+  signups: ['Personas apuntadas', 'Suma actual de personas apuntadas a las actividades vigentes. No equivale todavía a asistencia confirmada.', 'dashboard-insights'],
   locations: ['Locales detectados', 'Fichas únicas de lugares organizadas por ciudad y nombre, unificadas cuando Google Places identifica el mismo local.', 'dashboard-locations']
 };
 function dashboardCard(key, value) {
@@ -466,10 +466,10 @@ async function loadDashboard(key) {
   if (!response.ok) throw new Error(data.error || 'No se pudo abrir el tablero.');
   dashboardData = data;
   $('#dashboard-status').textContent = 'Datos actualizados.';
-  $('#dashboard-data').innerHTML = [['groups', data.activeGroups], ['users', data.uniqueMembers], ['dailyUsers', data.averageDailyUsers], ['activities', data.activitiesCreated], ['signups', data.signups], ['locations', data.locations.length]].map(([key, value]) => dashboardCard(key, value)).join('');
+  $('#dashboard-data').innerHTML = [['groups', data.activeGroups], ['users', data.uniqueMembers], ['dailyUsers', data.averageDailyUsers], ['activities', data.currentActivities], ['signups', data.currentSignups], ['locations', data.locations.length]].map(([key, value]) => dashboardCard(key, value)).join('');
   renderDashboardExplanation();
   renderDashboardInsights(data);
-  $('#dashboard-groups').innerHTML = `<h2>Grupos creados</h2>${data.groups?.length ? `<div class="agenda-list">${data.groups.map(dashboardGroup).join('')}</div>` : '<p class="muted">Los grupos aparecerán aquí a medida que se creen o se actualicen sus ajustes.</p>'}`;
+  $('#dashboard-groups').innerHTML = `<div class="toolbar"><div><h2>Grupos creados</h2><p class="muted">Actualiza las cifras reales para leer el estado actual de todos los grupos.</p></div><button type="button" class="secondary" id="refresh-dashboard">Actualizar cifras reales</button></div>${data.groups?.length ? `<div class="agenda-list">${data.groups.map(dashboardGroup).join('')}</div>` : '<p class="muted">Pulsa “Actualizar cifras reales” para incorporar los grupos existentes.</p>'}`;
   $('#dashboard-locations').innerHTML = `<div class="toolbar"><h2>Fichas de locales</h2><button type="button" class="secondary" id="enrich-places">Completar fichas pendientes</button></div><p class="muted">Consulta hasta 20 locales sin ficha en cada actualización. Las personas apuntadas reflejan inscripciones; podrás confirmar asistencia real cuando incorporemos ese paso.</p>${data.locations.length ? `<div class="agenda-list">${data.locations.map(location => `<article class="card location-card"><div><h3>${esc(location.google?.name || location.place)}</h3><p>${esc(location.city)}</p></div>${locationCounts(location)}${googlePlaceDetails(location)}<a class="map-link" href="${esc(location.google?.mapsUrl || mapsUrl(`${location.place}, ${location.city}`, location.location))}" target="_blank" rel="noopener noreferrer">Abrir ficha en Google Maps ↗</a></article>`).join('')}</div>` : '<p class="muted">Aún no hay locales registrados.</p>'}`;
   renderDashboardMap(data.locations);
 }
@@ -487,6 +487,17 @@ $('#dashboard-insights').onclick = event => {
   if (!button) return;
   dashboardChart = button.dataset.chart;
   renderTimelineChart();
+};
+$('#dashboard-groups').onclick = event => {
+  if (event.target.id !== 'refresh-dashboard') return;
+  action(async () => {
+    const key = $('#dashboard-form').elements.key.value;
+    const response = await fetch('/api/admin/dashboard/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key } });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'No se han podido actualizar las cifras.');
+    await loadDashboard(key);
+    $('#dashboard-status').textContent = `Cifras reales actualizadas: ${result.synced} de ${result.found} grupos sincronizados.`;
+  });
 };
 $('#dashboard-locations').onclick = event => {
   if (event.target.id !== 'enrich-places') return;

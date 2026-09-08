@@ -39,6 +39,18 @@ test('sincroniza el número actual de miembros y permite actualizar la ciudad de
   assert.equal(report.groups[0].members, 2);
 });
 
+test('una instantánea reconstruye grupos, actividades e inscripciones existentes', async () => {
+  const data = new Map();
+  const dashboard = new Dashboard({ storage: { get: async key => structuredClone(data.get(key)), put: async (key, value) => data.set(key, structuredClone(value)) } });
+  await dashboard.fetch(new Request('https://analytics/record', { method: 'POST', body: JSON.stringify({ type: 'group-snapshot', groupId: 'grupo-real', name: 'Symphay', city: 'Zaragoza', platform: 'whatsapp', members: ['ana', 'bea', 'carlos'], activities: 8, signups: 34 }) }));
+  const report = await (await dashboard.fetch(new Request('https://analytics/dashboard'))).json();
+  assert.equal(report.activeGroups, 1);
+  assert.equal(report.uniqueMembers, 3);
+  assert.equal(report.currentActivities, 8);
+  assert.equal(report.currentSignups, 34);
+  assert.equal(report.groups[0].name, 'Symphay');
+});
+
 test('completa una ficha nueva con Google Places y la conserva en el tablero', async () => {
   const data = new Map();
   const originalFetch = globalThis.fetch;

@@ -8,8 +8,12 @@ export class Names {
     return this.ctx.blockConcurrencyWhile(async()=>{
       const body=await request.json();
       const slug=slugify(body.slug);
-      const current=await this.ctx.storage.get(slug);
       const action=new URL(request.url).pathname;
+      if(action==='/list') {
+        const entries=await this.ctx.storage.list();
+        return Response.json({ ids:[...new Set([...entries.values()].filter(value => typeof value === 'string'))].slice(0,300) });
+      }
+      const current=await this.ctx.storage.get(slug);
       if(action==='/resolve')return Response.json(current ? {id:current} : {error:'Este grupo no existe o ha sido borrado.'},{status:current?200:404});
       if(action==='/release') {if(current===body.id)await this.ctx.storage.delete(slug);return Response.json({ok:true});}
       if(!current || current===body.id){await this.ctx.storage.put(slug,body.id);return Response.json({slug});}
