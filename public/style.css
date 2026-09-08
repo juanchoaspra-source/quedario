@@ -20,3 +20,6 @@
 
 /* Navegación permanente: siempre disponible mientras se consulta cualquier pantalla. */
 header{position:sticky;top:0;z-index:30;background:#f6f7f2;box-shadow:0 1px 0 #dce3dc}header .brand{flex-shrink:0}header #account{position:relative;z-index:31}@media(min-width:1100px){body:has(#dashboard:not([hidden])) header{max-width:1440px}}
+
+/* Fijación real de la navegación, también al desplazarse por formularios largos. */
+body{padding-top:94px}header{position:fixed;top:0;left:50%;transform:translateX(-50%);width:min(1120px,100%);margin:0;padding:24px;z-index:100;background:#f6f7f2;box-shadow:0 1px 0 #dce3dc}@media(min-width:1100px){body:has(#dashboard:not([hidden])) header{width:min(1440px,100%)}}@media(max-width:600px){body{padding-top:84px}header{padding:20px}}
