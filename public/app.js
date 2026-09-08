@@ -27,7 +27,7 @@ const categoryGroups = {
 };
 const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${categories[key][1]}"/></svg>`;
 const esc = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-let token, saved, group, id, filter = 'all', joining, editingId, dashboardMap;
+let token, saved, group, id, filter = 'all', joining, editingId, dashboardMap, focusedEventId;
 
 try {
   token = localStorage.getItem('quedario.identity') || crypto.randomUUID();
@@ -110,7 +110,7 @@ function eventCard(event) {
   const comments = event.comments || [];
   const dateRange = dateRangeLabel(event);
   const commentsMarkup = comments.length ? `<section class="event-comments" aria-label="Comentarios"><h4>Comentarios <span>${comments.length}</span></h4><ul>${comments.map(comment => `<li><strong>${esc(comment.name)}${comment.mine ? ' (tú)' : ''}</strong><p>${esc(comment.text)}</p></li>`).join('')}</ul></section>` : '<section class="event-comments"><h4>Comentarios <span>0</span></h4><p class="muted">Aún no hay comentarios.</p></section>';
-  return `<article class="card event-card">${event.image ? `<img class="event-image" src="${esc(event.image)}" alt="Cartel o imagen de ${esc(event.title)}">` : ''}<div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3>${dateRange ? `<p class="event-date-range">${esc(dateRange)}</p>` : ''}<p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.mapUrl ? 'Abrir enlace de Google Maps ↗' : event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div><details class="event-map"><summary>Ver mapa aquí</summary><iframe title="Mapa de ${esc(event.title)}" src="${esc(embed)}" loading="lazy"></iframe></details>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${event.canEdit ? `<button class="secondary" data-event="${esc(event.id)}" data-action="edit">Editar plan</button>` : ''}${event.canCancel ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
+  return `<article id="event-${esc(event.id)}" class="card event-card agenda-accent-${categoryAccent(event)}${event.id === focusedEventId ? ' focused-event' : ''}">${event.image ? `<img class="event-image" src="${esc(event.image)}" alt="Cartel o imagen de ${esc(event.title)}">` : ''}<div class="event-main"><time class="event-time" datetime="${esc(event.date)}">${esc(timeLabel(new Date(event.date)))}</time><div><span class="badge">${icon(key)}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3>${dateRange ? `<p class="event-date-range">${esc(dateRange)}</p>` : ''}<p class="event-place">${esc(event.place)}</p><a class="map-link" href="${esc(map)}" target="_blank" rel="noopener noreferrer">${event.mapUrl ? 'Abrir enlace de Google Maps ↗' : event.location ? 'Abrir ubicación exacta en Google Maps ↗' : 'Ver lugar en Google Maps ↗'}</a><p class="muted">${Math.min(event.participants.length, event.capacity)} / ${event.capacity} plazas · ${Math.max(0, event.participants.length - event.capacity)} en espera</p></div></div><details class="event-map"><summary>Ver mapa aquí</summary><iframe title="Mapa de ${esc(event.title)}" src="${esc(embed)}" loading="lazy"></iframe></details>${commentsMarkup}<div class="actions"><button data-event="${esc(event.id)}" data-action="${mine ? 'leave' : 'join'}" ${(past || group.closed) && !mine ? 'disabled' : ''}>${mine ? (mine.waiting ? 'Salir de la espera' : 'No podré ir') : (group.closed ? 'Grupo cerrado' : past ? 'Ya ha comenzado' : full ? 'Entrar en lista de espera' : 'Me apunto')}</button>${event.canEdit ? `<button class="secondary" data-event="${esc(event.id)}" data-action="edit">Editar plan</button>` : ''}${event.canCancel ? `<button class="secondary" data-event="${esc(event.id)}" data-action="cancel">Cancelar plan</button>` : ''}</div><details><summary>Participantes y lista de espera</summary><ul>${event.participants.map(participant => `<li class="${participant.waiting ? 'wait' : ''}">${participant.waiting ? 'En espera · ' : ''}${esc(participant.name)}${participant.mine ? ' (tú)' : ''}</li>`).join('') || '<li>Aún no hay nadie. ¡Abre el plan!</li>'}</ul></details></article>`;
 }
 
 function renderEvents(events) {
@@ -137,7 +137,7 @@ function render() {
   $('#creation-note').textContent = group.closed ? 'Grupo cerrado: nadie puede crear ni apuntarse a actividades hasta que un administrador lo reabra.' : 'Cualquier persona con acceso al grupo puede crear actividades. Solo los administradores pueden cancelarlas.';
   $('#group-status').textContent = group.closed ? 'Reabrir grupo' : 'Cerrar grupo';
   if (group.closed) $('#privacy-note').textContent = 'Grupo cerrado: se conserva para consulta y no admite nuevas entradas ni inscripciones.';
-  const events = group.events.filter(event => ($('#past').checked || new Date(event.date) > new Date()) && (filter === 'all' || event.category === filter)).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const events = group.events.filter(event => ($('#past').checked || new Date(event.date) > new Date() || event.id === focusedEventId) && (filter === 'all' || event.category === filter || event.id === focusedEventId)).sort((a, b) => new Date(a.date) - new Date(b.date));
   $('#count').textContent = `· ${events.length}`;
   $('#events').innerHTML = renderEvents(events);
 }
@@ -197,7 +197,7 @@ async function loadMyAgenda() {
     if (!days.has(key)) days.set(key, []);
     days.get(key).push(event);
   }
-  content.innerHTML = events.length ? [...days.values()].map(day => `<section class="agenda-day personal-agenda-day"><div class="day-heading"><h3>${esc(dayLabel(new Date(day[0].date)))}</h3><span>${day.length === 1 ? '1 actividad' : `${day.length} actividades`}</span></div><div class="grid">${day.map(event => `<a class="card saved-link agenda-link agenda-accent-${categoryAccent(event)}" href="#g=${esc(event.groupId)}"><span class="badge">${icon(eventCategory(event))}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p>${esc(timeLabel(new Date(event.date)))} · ${esc(event.place)}</p><p class="muted">${esc(agendaCapacity(event))}</p><p class="muted">Grupo: ${esc(event.groupName)}</p></a>`).join('')}</div></section>`).join('') : '<p class="muted">No tienes actividades futuras en los grupos guardados en este navegador.</p>';
+  content.innerHTML = events.length ? [...days.values()].map(day => `<section class="agenda-day personal-agenda-day"><div class="day-heading"><h3>${esc(dayLabel(new Date(day[0].date)))}</h3><span>${day.length === 1 ? '1 actividad' : `${day.length} actividades`}</span></div><div class="grid">${day.map(event => `<a class="card saved-link agenda-link agenda-accent-${categoryAccent(event)}" href="#g=${esc(event.groupId)}&e=${esc(event.id)}"><span class="badge">${icon(eventCategory(event))}${esc(eventLabel(event))}</span><h3>${esc(event.title)}</h3><p>${esc(timeLabel(new Date(event.date)))} · ${esc(event.place)}</p><p class="muted">${esc(agendaCapacity(event))}</p><p class="muted">Grupo: ${esc(event.groupName)}</p></a>`).join('')}</div></section>`).join('') : '<p class="muted">No tienes actividades futuras en los grupos guardados en este navegador.</p>';
 }
 async function route() {
   if (location.pathname === '/tablero') {
@@ -214,10 +214,14 @@ async function route() {
     const slug = location.pathname.split('/').filter(Boolean).join('/');
     try { const response = await fetch('/api/resolve/' + encodeURIComponent(slug)); const data = await response.json(); if (!response.ok) throw new Error(data.error); history.replaceState(null, '', '/#g=' + data.id); } catch (error) { notice(error.message); return; }
   }
-  const match = location.hash.match(/^#g=([a-f0-9-]{36})$/);
+  const match = location.hash.match(/^#g=([a-f0-9-]{36})(?:&e=([a-f0-9-]{36}))?$/);
   id = match?.[1];
+  focusedEventId = match?.[2];
   $('#home').hidden = !!id; $('#group').hidden = true; $('#locked').hidden = true; $('#members-section').hidden = true;
-  if (id) { $('#events').textContent = 'Cargando grupo…'; await action(load); }
+  if (id) {
+    $('#events').textContent = 'Cargando grupo…'; await action(load);
+    if (focusedEventId) requestAnimationFrame(() => document.getElementById(`event-${focusedEventId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
   else $('#saved').innerHTML = Object.entries(saved).map(([key, name]) => `<a class="card saved-link" href="#g=${esc(key)}"><h3>${esc(name)}</h3><span class="muted">Entrar al grupo →</span></a>`).join('') || '<p class="muted">Aquí encontrarás los grupos que crees o visites desde este navegador.</p>';
 }
 
