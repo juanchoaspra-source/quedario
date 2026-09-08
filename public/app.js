@@ -319,10 +319,16 @@ document.querySelectorAll('input[type="password"]').forEach((input, index) => {
   button.onclick = () => { input.type = input.type === 'password' ? 'text' : 'password'; update(); }; wrap.append(button); update(); input.form.addEventListener('reset', () => { input.type = 'password'; update(); });
 });
 let account;
+function accountInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'U';
+  return parts.slice(0, 2).map(part => part[0]).join('').toLocaleUpperCase('es-ES');
+}
 function renderAccount() {
   const button = $('#account');
   if (!account) { button.textContent = '◯'; button.setAttribute('aria-label', 'Entrar con Google'); $('#account-content').innerHTML = '<p class="muted">Inicia sesión con Google para mantener tu identidad entre dispositivos.</p><div id="google-button"></div>'; return; }
-  button.innerHTML = account.picture ? `<img src="${esc(account.picture)}" alt="">` : esc(account.name.slice(0, 1).toUpperCase());
+  button.innerHTML = account.picture ? `<img src="${esc(account.picture)}" alt="">` : esc(accountInitials(account.name));
+  button.setAttribute('aria-label', `Cuenta de ${account.name}`);
   $('#account-content').innerHTML = `<p><strong>${esc(account.name)}</strong><br><span class="muted">${esc(account.email)}</span></p><label>Foto de perfil<input id="profile-photo" type="file" accept="image/*"></label><p class="muted">Se reduce automáticamente a WebP antes de guardarla.</p><button id="logout" class="secondary">Cerrar sesión</button>`;
   $('#logout').onclick = () => action(async () => { await fetch('/api/auth/logout', { method: 'POST', headers: {'Content-Type':'application/json'} }); account = null; renderAccount(); $('#account-dialog').close(); });
   $('#profile-photo').onchange = event => action(async () => { const file = event.target.files[0]; if (!file) return; const picture = await compressProfilePhoto(file); const response = await fetch('/api/auth/profile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ picture }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'No se pudo guardar la foto.'); account = data.account; renderAccount(); });
