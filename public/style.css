@@ -17,3 +17,6 @@
 
 /* El tablero se diseña a escala de escritorio. */
 #dashboard{max-width:none;width:100%;padding:34px}#dashboard>h1{max-width:720px}#dashboard #dashboard-form{max-width:560px}#dashboard-groups,#dashboard-locations,#dashboard-insights,#dashboard-map-section{margin-top:34px}@media(min-width:1100px){body:has(#dashboard:not([hidden])) header,body:has(#dashboard:not([hidden])) main{max-width:1440px}#dashboard{padding:38px}.dashboard-metrics{grid-template-columns:repeat(6,minmax(0,1fr))}.dashboard-card{min-height:155px}.dashboard-section{padding:30px}}
+
+/* Navegación permanente: siempre disponible mientras se consulta cualquier pantalla. */
+header{position:sticky;top:0;z-index:30;background:#f6f7f2;box-shadow:0 1px 0 #dce3dc}header .brand{flex-shrink:0}header #account{position:relative;z-index:31}@media(min-width:1100px){body:has(#dashboard:not([hidden])) header{max-width:1440px}}
