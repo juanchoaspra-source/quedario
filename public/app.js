@@ -212,7 +212,10 @@ function openEventDialog(eventToEdit) {
     if (eventToEdit.location) { form.dataset.latitude = String(eventToEdit.location.latitude); form.dataset.longitude = String(eventToEdit.location.longitude); }
   }
   updateEventImagePreview(eventToEdit?.image || '');
-  $('#event-dialog h2').textContent = eventToEdit ? 'Editar actividad' : 'Un nuevo plan'; form.querySelector('button[type="submit"]').textContent = eventToEdit ? 'Guardar cambios' : 'Crear quedada'; updateDetail(); updatePlacePreview();
+  $('#event-dialog h2').textContent = eventToEdit ? 'Editar actividad' : 'Un nuevo plan';
+  const submit = form.querySelector('button[type="submit"]');
+  if (!submit) throw new Error('No se ha encontrado el botón para guardar la actividad.');
+  submit.textContent = eventToEdit ? 'Guardar cambios' : 'Crear quedada'; updateDetail(); updatePlacePreview();
   const dialog = $('#event-dialog');
   if (!dialog.open) dialog.showModal();
   form.elements.title.focus();
