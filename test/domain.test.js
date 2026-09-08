@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {addComment,eventInput,enroll,publicGroup} from '../src/domain.js';
+import {ensureMember} from '../src/access.js';
 test('aforo, espera por orden, duplicados y promoción al darse de baja',()=>{
  const event=eventInput({title:'Cena',place:'Centro',date:'2099-01-01',capacity:1,category:'cena'});
  enroll(event,'a','Ana');enroll(event,'b','Bea');enroll(event,'b','Bea');
@@ -48,4 +49,14 @@ test('guarda comentarios y oculta la identidad interna de quien comenta',()=>{
  assert.equal(comment.mine,true);
  assert.equal(comment.token,undefined);
  assert.throws(()=>addComment(event,'otro','Bea',' '));
+});
+test('aplica el límite del grupo en una única admisión y no filtra al creador del plan',()=>{
+ const owner=crypto.randomUUID(), guest=crypto.randomUUID();
+ const event=eventInput({title:'Cena',place:'Centro',date:'2099-01-01',capacity:4});
+ event.creatorToken=guest;
+ const group={name:'Amigos',owner,admins:[owner],members:[{id:crypto.randomUUID(),token:owner,name:'Ana'}],events:[event]};
+ assert.equal(publicGroup(group,guest).events[0].canCancel,true);
+ assert.equal(JSON.stringify(publicGroup(group,guest)).includes(guest),false);
+ group.members=Array.from({length:2000},(_,index)=>({id:String(index),token:`member-${index}`,name:'Miembro'}));
+ assert.throws(()=>ensureMember(group,guest,'Bea'),/límite de miembros/);
 });

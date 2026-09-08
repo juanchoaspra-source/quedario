@@ -4,7 +4,7 @@ import { Group } from '../src/worker.js';
 test('migra el grupo existente, protege datos, administra permisos y revoca contraseñas', async () => {
  const owner=crypto.randomUUID(), guest=crypto.randomUUID(), stranger=crypto.randomUUID();
  const map=new Map([['group',{name:'Grupo existente',owner,events:[]}]]);
- const instance=new Group({storage:{get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),deleteAll:async()=>map.clear()},blockConcurrencyWhile:fn=>fn()});
+ const instance=new Group({storage:{get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),delete:async k=>map.delete(k),deleteAll:async()=>map.clear()},blockConcurrencyWhile:fn=>fn()});
  async function req(token,path='',method='GET',body){const r=await instance.fetch(new Request('https://example.com/api/groups/'+crypto.randomUUID()+path,{method,headers:{'X-Participant':token},...(body?{body:JSON.stringify(body)}:{})}));return {status:r.status,data:await r.json()};}
  assert.equal((await req(owner)).data.owner,true);
  assert.equal((await req(guest,'/settings','PATCH',{name:'Ataque'})).status,403);
@@ -17,6 +17,7 @@ test('migra el grupo existente, protege datos, administra permisos y revoca cont
  assert.equal((await req(guest,'/admins','PATCH',{memberId:member.id,admin:true})).status,403);
  const guestPlan=await req(guest,'/events','POST',{title:'Plan de Bea',place:'Centro',capacity:1,date:'2099-01-01'});
  assert.equal(guestPlan.status,200);assert.equal(guestPlan.data.events[0].title,'Plan de Bea');
+ assert.equal((await req(guest,`/events/${guestPlan.data.events[0].id}`,'DELETE')).status,200);
  assert.equal((await req(owner,'/admins','PATCH',{memberId:member.id,admin:true})).status,200);
  assert.equal((await req(guest,'/settings','PATCH',{name:'Nuevo nombre',password:'Nueva clave 456'})).status,200);
  assert.equal((await req(owner,'/admins','PATCH',{memberId:member.id,admin:false})).status,200);
@@ -25,7 +26,7 @@ test('migra el grupo existente, protege datos, administra permisos y revoca cont
  assert.equal((await req(guest,'/unlock','POST',{name:'Bea',password:'Nueva clave 456'})).status,200);
  const mine=(await req(owner)).data.members.find(m=>m.mine);
  assert.equal((await req(owner,'/admins','PATCH',{memberId:mine.id,admin:false})).status,400);
- assert.equal(map.get('group').events.length,1);
+ assert.equal(map.get('group').events.length,0);
  assert.equal(map.get('group').password.hash.includes('Nueva clave'),false);
  const event=(await req(owner,'/events','POST',{title:'Cena',place:'Centro',capacity:1,date:'2099-01-01'})).data.events.at(-1);
  await req(guest,`/events/${event.id}/participants`,'POST',{name:'Bea'});

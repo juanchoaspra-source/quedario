@@ -1,12 +1,26 @@
 import { text, eventInput, enroll, addComment, publicGroup } from './domain.js';
-import { migrate, isAdmin, canRead, passwordHash, setPassword } from './access.js';
+import { migrate, isAdmin, canRead, ensureMember, passwordMatches, setPassword } from './access.js';
 import { slugify, namesRequest } from './names.js';
 export { Names } from './names.js';
-const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
+const securityHeaders = {
+  'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Permissions-Policy': 'geolocation=(self), camera=(), microphone=()',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'"
+};
+const json = (data, status = 200) => Response.json(data, { status, headers: securityHeaders });
+function secure(response) {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(securityHeaders)) if (!headers.has(name)) headers.set(name, value);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if (!url.pathname.startsWith('/api/')) return secure(await env.ASSETS.fetch(request));
     if (request.method !== 'GET' && request.headers.get('Origin') !== url.origin) return json({ error: 'Origen no permitido.' }, 403);
     if (Number(request.headers.get('Content-Length')) > 16384) return json({ error: 'Petición demasiado grande.' }, 413);
     const named=url.pathname.match(/^\/api\/resolve\/([a-z0-9-]{1,65})$/);
@@ -16,14 +30,15 @@ export default {
     }
     const match = url.pathname.match(/^\/api\/groups\/([a-f0-9-]{36})(?:\/.*)?$/);
     if (!match) return json({ error: 'Ruta no encontrada.' }, 404);
-    return env.GROUPS.get(env.GROUPS.idFromName(match[1])).fetch(request);
+    const headers = new Headers(request.headers);
+    headers.set('X-Quedario-Rate-Key', request.headers.get('CF-Connecting-IP') || 'unknown');
+    return secure(await env.GROUPS.get(env.GROUPS.idFromName(match[1])).fetch(new Request(request, { headers })));
   }
 };
 export class Group {
   constructor(ctx, env) { this.ctx = ctx; this.env = env; }
   async fetch(request) {
-    return this.ctx.blockConcurrencyWhile(async () => {
-      try {
+    try {
         const token = request.headers.get('X-Participant');
         if (!token || !/^[a-f0-9-]{36}$/.test(token)) return json({ error: 'Identificación no válida.' }, 401);
         const path = new URL(request.url).pathname.split('/').slice(4);
@@ -62,17 +77,19 @@ export class Group {
             if (group.closed && !group.members.some(m => m.token === token)) return locked();
             const name = text(body.name, 60);
             const now = Date.now();
-            let attempts = await this.ctx.storage.get('attempts');
+            const rateKey = `unlock-attempts:${token}:${request.headers.get('X-Quedario-Rate-Key') || 'unknown'}`;
+            let attempts = await this.ctx.storage.get(rateKey);
             if (!attempts || now - attempts.start > 60000) attempts = { start: now, count: 0 };
-            if (attempts.count >= 30) return json({ error: 'Demasiados intentos. Espera un minuto.' }, 429);
-            attempts.count++;
-            await this.ctx.storage.put('attempts', attempts);
-            if (group.password && (typeof body.password !== 'string' || body.password.length > 128 || await passwordHash(body.password, group.password.salt) !== group.password.hash)) return locked();
-            let member = group.members.find(m => m.token === token);
-            if (!member) {
-              if (group.members.length >= 2000) throw new Error('El grupo ha alcanzado su límite de miembros.');
-              member = { id: crypto.randomUUID(), token }; group.members.push(member);
+            if (group.password) {
+              if (attempts.count >= 10) return json({ error: 'Demasiados intentos para este acceso. Espera un minuto.' }, 429);
+              if (typeof body.password !== 'string' || body.password.length > 128 || !await passwordMatches(body.password, group.password)) {
+                attempts.count++;
+                await this.ctx.storage.put(rateKey, attempts);
+                return locked();
+              }
+              await this.ctx.storage.delete(rateKey);
             }
+            const member = ensureMember(group, token, name);
             member.name = name; member.version = group.accessVersion;
           } else if (!canRead(group, token)) return locked();
           else if (path.length === 1 && path[0] === 'settings' && request.method === 'PATCH') {
@@ -110,6 +127,7 @@ export class Group {
             if (group.closed) throw new Error('El grupo está cerrado. Reábrelo para crear quedadas.');
             if (group.events.length >= 200) throw new Error('Límite de 200 quedadas por grupo.');
             const event = eventInput(body);
+            event.creatorToken = token;
             const member = group.members.find(m => m.token === token);
             addComment(event, token, member?.name || 'Administrador', body.comment);
             group.events.push(event);
@@ -119,24 +137,22 @@ export class Group {
             if (path.length === 3 && path[2] === 'participants' && request.method === 'POST') {
               if (group.closed) throw new Error('El grupo está cerrado y no admite inscripciones.');
               enroll(event, token, body.name);
-              migrate(group);
-              const member = group.members.find(m => m.token === token);
+              const member = ensureMember(group, token, body.name);
               member.name = text(body.name, 60);
               addComment(event, token, member.name, body.comment);
             }
             else if (path.length === 3 && path[2] === 'participants' && request.method === 'DELETE') event.participants = event.participants.filter(p => p.token !== token);
             else if (path.length === 2 && request.method === 'DELETE') {
-              if (!isAdmin(group, token)) return json({ error: 'Solo los administradores pueden cancelar.' }, 403);
+              if (!isAdmin(group, token) && event.creatorToken !== token) return json({ error: 'Solo quien creó la quedada o un administrador puede cancelarla.' }, 403);
               group.events = group.events.filter(e => e.id !== event.id);
             } else return json({ error: 'Ruta no encontrada.' }, 404);
           }
         }
         await this.ctx.storage.put('group', group);
         return json(publicGroup(group, token));
-      } catch (error) {
+    } catch (error) {
         if (error instanceof SyntaxError) return json({ error: 'Datos no válidos.' }, 400);
         return json({ error: error.message || 'No se pudo guardar.' }, 400);
-      }
-    });
+    }
   }
 }
