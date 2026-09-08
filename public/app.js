@@ -322,8 +322,15 @@ function renderAccount() {
   const button = $('#account');
   if (!account) { button.textContent = '◯'; button.setAttribute('aria-label', 'Entrar con Google'); $('#account-content').innerHTML = '<p class="muted">Inicia sesión con Google para mantener tu identidad entre dispositivos.</p><div id="google-button"></div>'; return; }
   button.innerHTML = account.picture ? `<img src="${esc(account.picture)}" alt="">` : esc(account.name.slice(0, 1).toUpperCase());
-  $('#account-content').innerHTML = `<p><strong>${esc(account.name)}</strong><br><span class="muted">${esc(account.email)}</span></p><button id="logout" class="secondary">Cerrar sesión</button>`;
+  $('#account-content').innerHTML = `<p><strong>${esc(account.name)}</strong><br><span class="muted">${esc(account.email)}</span></p><label>Foto de perfil<input id="profile-photo" type="file" accept="image/*"></label><p class="muted">Se reduce automáticamente a WebP antes de guardarla.</p><button id="logout" class="secondary">Cerrar sesión</button>`;
   $('#logout').onclick = () => action(async () => { await fetch('/api/auth/logout', { method: 'POST', headers: {'Content-Type':'application/json'} }); account = null; renderAccount(); $('#account-dialog').close(); });
+  $('#profile-photo').onchange = event => action(async () => { const file = event.target.files[0]; if (!file) return; const picture = await compressProfilePhoto(file); const response = await fetch('/api/auth/profile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ picture }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'No se pudo guardar la foto.'); account = data.account; renderAccount(); });
+}
+async function compressProfilePhoto(file) {
+  if (!file.type.startsWith('image/')) throw new Error('Selecciona una imagen.');
+  const image = await createImageBitmap(file), side = Math.min(256, image.width, image.height), canvas = document.createElement('canvas'); canvas.width = side; canvas.height = side;
+  const context = canvas.getContext('2d'), scale = Math.max(side / image.width, side / image.height); context.drawImage(image, (side - image.width * scale) / 2, (side - image.height * scale) / 2, image.width * scale, image.height * scale);
+  return canvas.toDataURL('image/webp', 0.78);
 }
 async function googleCredential(response) {
   const result = await fetch('/api/auth/google', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ credential: response.credential }) });

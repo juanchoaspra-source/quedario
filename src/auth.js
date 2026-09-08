@@ -16,6 +16,12 @@ export class Auth {
     const key = `session:${await hash(raw)}`, session = await this.ctx.storage.get(key);
     if (!session || session.expiresAt < Date.now()) { await this.ctx.storage.delete(key); return Response.json({ account: null }); }
     if (new URL(request.url).pathname === '/logout') { await this.ctx.storage.delete(key); return Response.json({ account: null }); }
+    if (new URL(request.url).pathname === '/profile') {
+      if (typeof body.picture !== 'string' || !body.picture.startsWith('data:image/webp;base64,') || body.picture.length > 120000) return Response.json({ error: 'La foto debe ser una imagen WebP reducida.' }, { status: 400 });
+      session.account.picture = body.picture;
+      await this.ctx.storage.put(`google:${session.account.subject}`, session.account);
+      await this.ctx.storage.put(key, session);
+    }
     return Response.json({ account: session.account });
   }
 }

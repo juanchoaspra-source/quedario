@@ -29,7 +29,8 @@ export default {
     if (!url.pathname.startsWith('/api/')) return secure(await env.ASSETS.fetch(request));
     if (request.method !== 'GET' && request.headers.get('Origin') !== url.origin) return json({ error: 'Origen no permitido.' }, 403);
     if (request.method !== 'GET' && !request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) return json({ error: 'El contenido debe ser JSON.' }, 415);
-    if (Number(request.headers.get('Content-Length')) > 16384) return json({ error: 'Petición demasiado grande.' }, 413);
+    const bodyLimit = url.pathname === '/api/auth/profile' ? 120000 : 16384;
+    if (Number(request.headers.get('Content-Length')) > bodyLimit) return json({ error: 'Petición demasiado grande.' }, 413);
     const clientKey = request.headers.get('CF-Connecting-IP') || 'unknown';
     if (url.pathname === '/api/auth/config' && request.method === 'GET') return json({ googleClientId: env.GOOGLE_CLIENT_ID || '' });
     const session = request.headers.get('Cookie')?.match(/(?:^|;\s*)quedario_session=([^;]+)/)?.[1];
@@ -37,6 +38,10 @@ export default {
     if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
       const result = await (await authRequest(env, '/logout', { session })).json();
       return json(result, 200, { 'Set-Cookie': 'quedario_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax' });
+    }
+    if (url.pathname === '/api/auth/profile' && request.method === 'POST') {
+      const result = await (await authRequest(env, '/profile', { session, picture: (await request.json()).picture })).json();
+      return json(result, result.error ? 400 : 200);
     }
     if (url.pathname === '/api/auth/google' && request.method === 'POST') {
       if (!env.GOOGLE_CLIENT_ID) return json({ error: 'El acceso con Google aún no está configurado.' }, 503);
