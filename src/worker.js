@@ -165,6 +165,11 @@ export class Group {
               if (!wasEnrolled) await analyticsRequest(this.env, { type: 'signup', city: event.city, place: event.place });
             }
             else if (path.length === 3 && path[2] === 'participants' && request.method === 'DELETE') event.participants = event.participants.filter(p => p.token !== token);
+            else if (path.length === 2 && request.method === 'PATCH') {
+              if (!isAdmin(group, token) && event.creatorToken !== token) return json({ error: 'Solo quien creó la quedada o un administrador puede editarla.' }, 403);
+              const updated = eventInput(body);
+              Object.assign(event, updated, { id: event.id, creatorToken: event.creatorToken, participants: event.participants, comments: event.comments || [] });
+            }
             else if (path.length === 2 && request.method === 'DELETE') {
               if (!isAdmin(group, token) && event.creatorToken !== token) return json({ error: 'Solo quien creó la quedada o un administrador puede cancelarla.' }, 403);
               group.events = group.events.filter(e => e.id !== event.id);

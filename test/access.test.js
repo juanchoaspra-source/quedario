@@ -17,6 +17,8 @@ test('migra el grupo existente, protege datos, administra permisos y revoca cont
  assert.equal((await req(guest,'/admins','PATCH',{memberId:member.id,admin:true})).status,403);
  const guestPlan=await req(guest,'/events','POST',{title:'Plan de Bea',place:'Centro',capacity:1,date:'2099-01-01'});
  assert.equal(guestPlan.status,200);assert.equal(guestPlan.data.events[0].title,'Plan de Bea');
+ assert.equal((await req(guest,`/events/${guestPlan.data.events[0].id}`,'PATCH',{title:'Plan editado',place:'Centro',capacity:2,date:'2099-01-02'})).data.events[0].title,'Plan editado');
+ assert.equal((await req(stranger,`/events/${guestPlan.data.events[0].id}`,'PATCH',{title:'Ataque',place:'Centro',capacity:2,date:'2099-01-02'})).status,401);
  assert.equal((await req(guest,`/events/${guestPlan.data.events[0].id}`,'DELETE')).status,200);
  assert.equal((await req(owner,'/admins','PATCH',{memberId:member.id,admin:true})).status,200);
  assert.equal((await req(guest,'/settings','PATCH',{name:'Nuevo nombre',password:'Nueva clave 456'})).status,200);
